@@ -1,0 +1,479 @@
+/* 2.5D 电影舞台 + CSS 3D 布景模型 + 场景内立体交互 */
+/* 在 styles.css 之后加载，覆盖旧的扁平游戏背景规则 */
+
+.game {
+  --px: 0; --py: 0; --zoom: 1.06; --cx: 0px; --cy: 0px; --tilt: 0deg; --ry3d: 0deg; --shake: 1;
+  position: relative;
+  min-height: 700px;
+  border-radius: 26px;
+  overflow: hidden;
+  border: 3px solid var(--ink);
+  background: #10162c;
+  color: #fff;
+  isolation: isolate;
+}
+.game-inner {
+  position: relative;
+  z-index: 5;
+  min-height: 700px;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 20px 20px;
+  pointer-events: none;
+}
+/* 只有真正可点的控件接收事件，其余区域让舞台上的单词牌 / 视差可被点击穿透 */
+.game-inner button, .game-inner .hole3d, .game-inner .slot3d { pointer-events: auto; }
+
+/* ---------- 舞台分层 ---------- */
+.stage { position: absolute; inset: 0; overflow: hidden; z-index: 1; pointer-events: none; }
+.camera {
+  position: absolute;
+  inset: -7%;
+  transform: scale(var(--zoom)) translate3d(var(--cx), var(--cy), 0) rotate(var(--tilt));
+  transform-origin: 50% 52%;
+  transition: transform .95s cubic-bezier(.22, .8, .26, 1);
+  will-change: transform;
+}
+.layer { position: absolute; inset: 0; will-change: transform; }
+.layer > .drift { position: absolute; inset: 0; animation: drift 13s ease-in-out infinite alternate; }
+.l-far > .drift { animation-duration: 17s; animation-direction: alternate-reverse; }
+.l-mid > .drift { animation-duration: 21s; }
+.l-fore > .drift { animation-duration: 9s; }
+@keyframes drift { from { transform: translate3d(-8px, 2px, 0) } to { transform: translate3d(8px, -4px, 0) } }
+
+.l-sky { transform: translate3d(calc(var(--px) * -6px), calc(var(--py) * -4px), 0) scale(1.08); }
+.l-sky .drift { background: var(--sky); }
+.l-sky .drift:after {
+  content: ""; position: absolute;
+  left: var(--sunx); top: var(--suny);
+  width: 190px; height: 190px; margin: -95px 0 0 -95px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--sun) 0 16%, transparent 62%);
+  opacity: .85;
+}
+.l-far { transform: translate3d(calc(var(--px) * -17px), calc(var(--py) * -10px), 0) scale(1.06); color: rgba(18, 24, 48, .55); }
+.l-far .far-svg { position: absolute; left: -3%; bottom: 8%; width: 106%; height: 46%; }
+.l-mid { transform: translate3d(calc(var(--px) * -31px), calc(var(--py) * -17px), 0) scale(1.07); }
+.l-mid img {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; opacity: .62;
+  -webkit-mask-image: radial-gradient(ellipse 84% 76% at 50% 48%, #000 42%, transparent 100%);
+  mask-image: radial-gradient(ellipse 84% 76% at 50% 48%, #000 42%, transparent 100%);
+  filter: saturate(1.18) contrast(1.04);
+}
+.l-actors { transform: translate3d(calc(var(--px) * -60px), calc(var(--py) * -30px), 0); }
+.l-fore { transform: translate3d(calc(var(--px) * -92px), calc(var(--py) * -46px), 0) scale(1.1); color: rgba(12, 17, 35, .82); }
+.l-fore .fore-svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.l-fore:after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 58%, rgba(10,14,30,.55) 100%); }
+
+.grade {
+  position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse 78% 70% at 50% 42%, transparent 20%, rgba(8,12,26,.72) 100%),
+              linear-gradient(180deg, var(--haze), transparent 46%);
+  transition: background .6s;
+}
+.stage[data-mood="dark"] .grade { background: radial-gradient(ellipse 70% 62% at 50% 42%, transparent 8%, rgba(4,6,16,.88) 100%), rgba(20,8,30,.3); }
+.stage[data-mood="win"] .grade { background: radial-gradient(ellipse 90% 84% at 50% 40%, rgba(255,220,130,.22), rgba(8,12,26,.6) 100%); }
+.stage[data-mood="hurt"] .grade { background: radial-gradient(ellipse 74% 66% at 50% 44%, transparent 14%, rgba(90,8,20,.7) 100%), rgba(180,20,40,.2); }
+
+/* ---------- 粒子 ---------- */
+.particles { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.pt {
+  position: absolute; left: var(--l); top: -8%;
+  width: var(--s); height: var(--s);
+  background: var(--pc); opacity: var(--o);
+  border-radius: 50%;
+  animation: fall var(--d) linear var(--dl) infinite;
+}
+.pt-leaf { border-radius: 80% 10% 80% 10%; animation-name: fallspin; }
+.pt-ember { box-shadow: 0 0 10px 3px var(--pc); }
+.pt-spark { width: 3px; height: 12px; border-radius: 2px; }
+.pt-bug { animation-name: driftpt; }
+.pt-dust { opacity: .3; }
+@keyframes fall { to { transform: translate3d(34px, 760px, 0) } }
+@keyframes fallspin { to { transform: translate3d(60px, 760px, 0) rotate(540deg) } }
+@keyframes driftpt { 0% { transform: translate(0,0) } 50% { transform: translate(26px, 30px) } 100% { transform: translate(-14px, -18px) } }
+.mode-lite .particles, .mode-lite .l-fore, .mode-lite .set3d { display: none; }
+
+/* ---------- CSS 3D 布景 ---------- */
+.set3d {
+  position: absolute; inset: 0;
+  perspective: 720px; perspective-origin: 50% 54%;
+  transform: translate3d(calc(var(--px) * -44px), calc(var(--py) * -22px), 0);
+  opacity: .62; transition: opacity .5s;
+  pointer-events: none;
+}
+.mode-solid .set3d { opacity: 1; }
+.world3d {
+  position: absolute; inset: 0;
+  transform-style: preserve-3d;
+  transform: rotateY(var(--ry3d)) rotateX(-6deg) translateZ(0);
+  transition: transform .35s ease-out;
+}
+.p3 {
+  position: absolute; left: 50%; top: 54%;
+  width: var(--w); height: var(--h);
+  margin-left: calc(var(--w) / -2); margin-top: calc(var(--h) / -2);
+  transform-style: preserve-3d;
+  transform: translate3d(var(--x), var(--y), var(--z)) rotateY(var(--ry)) rotateX(var(--rx));
+}
+.floor3d {
+  position: absolute; left: 50%; top: 62%;
+  width: 1100px; height: 900px; margin: -450px 0 0 -550px;
+  transform: rotateX(76deg) translateZ(-40px);
+  border: 3px solid rgba(255,255,255,.16);
+  border-radius: 30px;
+  opacity: .75;
+}
+.floor-grass { background: repeating-linear-gradient(90deg, rgba(143,209,47,.16) 0 3px, transparent 3px 74px), repeating-linear-gradient(0deg, rgba(143,209,47,.12) 0 3px, transparent 3px 74px), rgba(24,58,30,.42); }
+.floor-tile { background: repeating-linear-gradient(90deg, rgba(190,215,255,.2) 0 3px, transparent 3px 78px), repeating-linear-gradient(0deg, rgba(190,215,255,.16) 0 3px, transparent 3px 78px), rgba(30,40,72,.5); }
+.floor-asphalt { background: repeating-linear-gradient(90deg, rgba(255,225,160,.18) 0 5px, transparent 5px 96px), repeating-linear-gradient(0deg, rgba(255,255,255,.08) 0 2px, transparent 2px 80px), rgba(22,24,40,.6); }
+.floor-roof { background: repeating-linear-gradient(90deg, rgba(255,255,255,.14) 0 3px, transparent 3px 60px), repeating-linear-gradient(0deg, rgba(255,255,255,.1) 0 3px, transparent 3px 60px), rgba(40,30,60,.55); }
+
+.trunk { width: 100%; height: 100%; border-radius: 30px 30px 8px 8px; background: linear-gradient(90deg, #4a2f1c, #8b5a2f 45%, #4a2f1c); border: 3px solid #2b1a10; box-shadow: inset 12px 0 20px #0004; }
+.platform { width: 100%; height: 100%; border-radius: 8px; background: repeating-linear-gradient(90deg, #b98243 0 34px, #96652f 34px 38px); border: 4px solid #3d2714; box-shadow: 0 14px 0 #6b4520, 0 22px 26px #0007; }
+.ladder { width: 100%; height: 100%; background: repeating-linear-gradient(0deg, transparent 0 26px, #d9a15e 26px 33px), linear-gradient(90deg, #9c6a34 0 8px, transparent 8px calc(100% - 8px), #9c6a34 calc(100% - 8px)); border-left: 8px solid #9c6a34; border-right: 8px solid #9c6a34; }
+.leaf-clump { width: 100%; height: 100%; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #6fbf3f, #2c6b22 70%); box-shadow: 0 0 0 16px #3f8a2c55, inset -18px -18px 30px #0004; }
+.leaf-clump.alt { background: radial-gradient(circle at 60% 40%, #8fd12f, #3a7a25 72%); }
+
+.shelf-face { position: relative; width: 100%; height: 100%; background: linear-gradient(90deg, #3a4670, #5a6a9c); border: 4px solid #1c2544; border-radius: 6px; padding: 12px; box-shadow: 0 12px 0 #141c34, 0 20px 30px #0007; }
+.shelf-row { display: block; height: 22%; margin-bottom: 5%; border-radius: 4px; background: repeating-linear-gradient(90deg, #ffb35c 0 16px, #7ed1ff 16px 30px, #b3e77a 30px 46px, #ff8ba6 46px 60px); box-shadow: inset 0 -5px 0 #0004; }
+.shelf-no { position: absolute; right: 8px; top: 4px; font-size: 12px; opacity: .5; }
+.ceil-light { width: 100%; height: 100%; border-radius: 8px; background: #fffbe0; box-shadow: 0 0 40px 18px #fff6c088, 0 0 90px 40px #cfe0ff44; }
+
+.bench { width: 100%; height: 100%; border-radius: 8px; background: linear-gradient(180deg, #9fb6cc, #4d6480); border: 4px solid #23364d; box-shadow: 0 12px 0 #2b3c52, 0 22px 28px #0007; }
+.coil { width: 100%; height: 100%; border-radius: 50%; border: 10px solid #9ce9ff; box-shadow: 0 0 22px 6px #61d6ff88, inset 0 0 18px #61d6ff88; animation: coilspin 3.4s linear infinite; }
+@keyframes coilspin { to { transform: rotate(360deg) } }
+.flask { width: 100%; height: 100%; border-radius: 40% 40% 50% 50%; background: linear-gradient(180deg, #b8f0ff44 0 40%, #b8e986 40%); border: 4px solid #dff6ff; box-shadow: 0 0 20px #9ce9ff88; }
+
+.goal { width: 100%; height: 100%; border: 10px solid #f4f8ff; border-bottom: none; border-radius: 6px 6px 0 0; box-shadow: 0 0 0 4px #1d254055; }
+.stand-block { width: 100%; height: 100%; border-radius: 8px; background: repeating-linear-gradient(0deg, #4a5b86 0 22px, #6d80b4 22px 30px); border: 4px solid #1c2544; }
+
+.wall3d { position: absolute; left: 50%; top: 50%; width: 740px; height: 620px; margin: -310px 0 0 -370px; transform-style: preserve-3d; }
+.wall3d.left { transform: translate3d(-330px, 0, -130px) rotateY(66deg); }
+.wall3d.right { transform: translate3d(330px, 0, -130px) rotateY(-66deg); }
+.locker-wall { width: 100%; height: 100%; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 16px; background: #46547e; border: 5px solid #1c2544; }
+.locker-wall i { display: block; border-radius: 5px; background: linear-gradient(160deg, #6e82b4, #3d4c76); border: 3px solid #25304f; box-shadow: inset 0 12px 0 #ffffff12; }
+.ceil3d { position: absolute; left: 50%; top: 50%; width: 760px; height: 680px; margin: -340px 0 0 -380px; transform: rotateX(88deg) translateZ(250px); background: repeating-linear-gradient(90deg, #2a3454 0 120px, #475680 120px 128px); opacity: .8; }
+.end-door { width: 100%; height: 100%; border-radius: 90px 90px 0 0; background: linear-gradient(180deg, #7c8ec0, #3b4870); border: 6px solid #1c2544; box-shadow: 0 0 40px #9ab4ff55; }
+
+.car-roof { width: 100%; height: 100%; border-radius: 46% 46% 12% 12%; background: linear-gradient(160deg, #e2705c, #8c3550); border: 4px solid #2a1526; box-shadow: 0 12px 0 #401c30, 0 22px 30px #0007, inset 0 12px 20px #fff3; }
+.lamp-post { width: 100%; height: 100%; border-radius: 8px; background: #3a4260; box-shadow: 0 0 50px 22px #ffd98a55; }
+.rail { width: 100%; height: 100%; border-top: 10px solid #2a2140; background: repeating-linear-gradient(90deg, transparent 0 60px, #2a2140 60px 70px); }
+.eye-ring { width: 100%; height: 100%; border-radius: 50%; border: 12px solid #d584ff88; box-shadow: 0 0 30px #b657e888, inset 0 0 30px #b657e888; animation: eyepulse 2.8s ease-in-out infinite; }
+@keyframes eyepulse { 50% { transform: scale(1.08); opacity: .65 } }
+
+.portal-ring { width: 100%; height: 100%; border-radius: 50%; border: 10px solid #ffd16699; box-shadow: 0 0 26px #ff9b7a88, inset 0 0 22px #d584ff77; animation: portalspin 6s linear infinite; }
+.ring-layer.r1, .ring-layer.r3, .ring-layer.r5 { animation-direction: reverse; animation-duration: 4.4s; border-color: #d584ffaa; }
+@keyframes portalspin { to { transform: rotate(360deg) } }
+.portal-core { width: 100%; height: 100%; border-radius: 50%; background: radial-gradient(circle, #fff8d6 0 22%, #ff9b7a 42%, #7a3fb0 76%); box-shadow: 0 0 60px 20px #ffb36b99; animation: eyepulse 1.4s ease-in-out infinite; }
+.shard { width: 100%; height: 100%; border-radius: 40% 40% 60% 60%; background: linear-gradient(160deg, #d584ff, #5b3b86); border: 3px solid #2b1a55; }
+
+/* ---------- 角色精灵 ---------- */
+.sprite { position: absolute; bottom: 13%; left: var(--left, 20%); width: 92px; height: 120px; transform: scale(var(--sc, 1)); transform-origin: bottom center; animation: bob 2.4s ease-in-out var(--dl, 0s) infinite, enter .55s cubic-bezier(.2,1.4,.4,1) both; filter: drop-shadow(0 10px 8px #0007); transition: filter .2s; }
+.sprite svg { width: 100%; height: 100%; overflow: visible; }
+.sprite.hero { left: 3%; right: auto; bottom: 30%; width: 88px; height: 114px; transform: scale(1.04); animation: bob 3s ease-in-out infinite, heroIn .7s cubic-bezier(.2,1.3,.4,1) both; }
+.sprite.hit { animation: hitfly .5s ease-out forwards; }
+@keyframes bob { 50% { transform: scale(var(--sc, 1)) translateY(-9px) rotate(-2deg) } }
+@keyframes enter { from { opacity: 0; transform: scale(.4) translateY(60px) } }
+@keyframes heroIn { from { opacity: 0; transform: scale(.5) translateX(90px) } }
+@keyframes hitfly { to { opacity: 0; transform: scale(.5) translate(70px, -90px) rotate(60deg) } }
+
+.word3d {
+  position: absolute; left: var(--wl); top: var(--wt);
+  padding: 7px 13px; border-radius: 12px;
+  background: #fff8d9; color: #1d2540;
+  border: 3px solid #1d2540; box-shadow: 0 6px 0 #1d2540;
+  font-size: 15px; font-weight: 900;
+  transform: perspective(500px) rotateX(8deg) rotateZ(-3deg);
+  animation: bob 3.4s ease-in-out var(--wd) infinite;
+  cursor: pointer; pointer-events: auto;
+}
+.word3d:hover { transform: perspective(500px) rotateX(0) rotateZ(0) translateZ(16px); background: #fff; }
+.word3d.taken { opacity: .25; pointer-events: none; transform: scale(.6); }
+.word3d:after { content: " 🔊"; font-size: 11px; }
+
+.fx-canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; image-rendering: pixelated; z-index: 3; opacity: .78; mix-blend-mode: screen; }
+.flash { position: absolute; inset: 0; z-index: 4; pointer-events: none; opacity: 0; }
+.flash.on { animation: flashout .42s ease-out; }
+@keyframes flashout { 0% { opacity: .85 } 100% { opacity: 0 } }
+.eyebrow {
+  display: inline-block;
+  background: rgba(10,16,34,.72); border: 1px solid rgba(255,255,255,.34);
+  color: #e9eeff; font-size: 12px; font-weight: 800; letter-spacing: .4px;
+  padding: 5px 11px; border-radius: 99px; margin-bottom: 8px;
+  pointer-events: none;
+}
+.shaking .camera { animation: camshake .42s ease-out; }
+@keyframes camshake {
+  0%,100% { margin-left: 0; margin-top: 0 }
+  20% { margin-left: calc(var(--shake) * -9px); margin-top: calc(var(--shake) * 4px) }
+  45% { margin-left: calc(var(--shake) * 8px); margin-top: calc(var(--shake) * -5px) }
+  70% { margin-left: calc(var(--shake) * -5px); margin-top: calc(var(--shake) * 3px) }
+}
+
+/* ---------- 场景 HUD / 字幕 ---------- */
+.game-hud { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.game-hud .tagx { background: rgba(10,16,34,.7); border: 1px solid rgba(255,255,255,.32); padding: 6px 12px; border-radius: 99px; font-weight: 800; font-size: 13px; backdrop-filter: blur(4px); }
+.game-hud .btn.small { background: #fff; color: #1d2540; }
+.hearts { letter-spacing: 3px; font-size: 19px; }
+.mode-switch { display: flex; gap: 4px; background: rgba(10,16,34,.7); border: 1px solid rgba(255,255,255,.3); border-radius: 99px; padding: 4px; backdrop-filter: blur(4px); }
+.mode-switch button { border: none; background: transparent; color: #dfe6ff; font-size: 12px; font-weight: 900; padding: 5px 10px; border-radius: 99px; min-height: 28px; }
+.mode-switch button.on { background: var(--accent, #8fd12f); color: #16210b; }
+.scene-head {
+  margin-top: 18px; max-width: 600px; padding: 10px 14px 12px; border-radius: 16px;
+  background: linear-gradient(90deg, rgba(8,12,28,.68), rgba(8,12,28,.26) 78%, transparent);
+  text-shadow: 0 2px 8px #000, 2px 2px 0 #0009;
+}
+.scene-head h2 { font-size: clamp(23px, 4vw, 34px); margin: 0; line-height: 1.1; }
+.scene-head p { margin: 7px 0 0; font-size: 13px; font-weight: 800; color: #dbe3ff; line-height: 1.55; }
+.play-area { flex: 1; min-height: 210px; display: grid; place-items: center; position: relative; }
+.caption { max-width: 780px; width: 100%; margin: 0 auto; }
+.story {
+  margin-top: 0;
+  background: rgba(9, 14, 30, .82); border: 2px solid rgba(255,255,255,.24);
+  border-left: 6px solid var(--accent, #8fd12f);
+  border-radius: 18px; padding: 16px 20px;
+  backdrop-filter: blur(7px);
+  box-shadow: 0 12px 30px #0006;
+}
+.story .en { font-size: clamp(17px, 2.4vw, 21px); font-weight: 800; line-height: 1.55; }
+.story .zh { color: #c4cdf0; font-size: 14px; font-weight: 700; margin-top: 7px; line-height: 1.6; }
+.story.compact { padding: 10px 16px; }
+.story.compact .en { font-size: 16px; }
+
+/* ---------- 立体选择卡 ---------- */
+.choices { display: grid; gap: 10px; margin-top: 12px; perspective: 700px; }
+.choice3d {
+  display: flex; align-items: center; gap: 13px; text-align: left;
+  width: 100%; min-height: 62px; padding: 12px 16px;
+  border-radius: 16px; color: #fff; font-size: 16px; font-weight: 900;
+  background: linear-gradient(180deg, rgba(46,56,92,.95), rgba(24,32,58,.95));
+  border: 2px solid rgba(255,255,255,.38);
+  box-shadow: 0 6px 0 rgba(6,10,22,.85), 0 14px 24px #0006;
+  transform: rotateX(6deg) translateZ(0);
+  transform-origin: 50% 100%;
+  transition: transform .18s, box-shadow .18s, background .18s;
+}
+.choice3d:hover { transform: rotateX(0) translateY(-4px) translateZ(22px); background: linear-gradient(180deg, rgba(84,110,60,.96), rgba(40,62,30,.96)); box-shadow: 0 10px 0 rgba(6,10,22,.85), 0 20px 30px #0007; }
+.choice3d:active { transform: rotateX(4deg) translateY(3px); box-shadow: 0 2px 0 rgba(6,10,22,.85); }
+.choice3d:disabled { opacity: .42; cursor: not-allowed; }
+.choice3d .num { display: grid; place-items: center; width: 32px; height: 32px; flex: 0 0 32px; background: var(--accent, #8fd12f); color: #16210b; border-radius: 10px; font-size: 15px; }
+.choice3d .sub { display: block; font-size: 12px; color: #c4cdf0; font-weight: 700; margin-top: 2px; }
+.choice3d .check { display: inline-block; margin-left: auto; font-size: 11px; font-weight: 900; color: #ffe6a0; border: 1px solid #ffe6a088; border-radius: 99px; padding: 3px 9px; white-space: nowrap; }
+
+.outcome { margin-top: 12px; padding: 13px 16px; border-radius: 16px; background: rgba(60,110,30,.42); border: 2px solid var(--lime); font-weight: 800; line-height: 1.55; backdrop-filter: blur(6px); }
+.outcome.fail { background: rgba(120,25,40,.45); border-color: var(--red); }
+.dice { display: inline-grid; place-items: center; width: 52px; height: 52px; background: #fff; color: var(--ink); border-radius: 14px; font-size: 25px; font-weight: 900; animation: shake .35s infinite; box-shadow: 0 5px 0 #0007; }
+@keyframes shake { 0%,100% { transform: rotate(-8deg) } 50% { transform: rotate(8deg) } }
+
+/* ---------- 伪 3D 小游戏 ---------- */
+.mini { width: 100%; margin: 0; background: rgba(9,14,30,.74); border: 2px solid var(--purple); border-radius: 20px; padding: 14px 16px 18px; backdrop-filter: blur(6px); }
+.mini-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; font-weight: 900; margin-bottom: 10px; flex-wrap: wrap; font-size: 15px; }
+.mini-bar { height: 9px; border-radius: 99px; background: rgba(255,255,255,.18); overflow: hidden; margin-top: 12px; }
+.mini-bar > i { display: block; height: 100%; background: var(--lime); width: 0; transition: width .2s; }
+
+.ground3d { perspective: 640px; perspective-origin: 50% 22%; width: min(430px, 94%); margin: 4px auto 0; }
+.holes3d {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+  padding: 16px; border-radius: 22px;
+  background: linear-gradient(180deg, rgba(60,80,50,.85), rgba(24,36,26,.9));
+  border: 3px solid rgba(255,255,255,.3);
+  transform: rotateX(52deg);
+  transform-style: preserve-3d;
+  box-shadow: 0 26px 0 rgba(8,14,10,.7), 0 40px 40px #0008;
+}
+.ground3d.boss .holes3d { background: linear-gradient(180deg, rgba(84,44,120,.9), rgba(30,16,52,.95)); }
+.hole3d {
+  aspect-ratio: 1; border-radius: 50%; position: relative;
+  background: radial-gradient(ellipse at 50% 40%, #060a12 0 52%, #26331f 56% 100%);
+  border: 3px solid rgba(0,0,0,.6);
+  display: grid; place-items: center;
+  transform-style: preserve-3d; cursor: default;
+  box-shadow: inset 0 8px 14px #000a;
+  transition: box-shadow .12s;
+}
+.hole3d.up { cursor: pointer; box-shadow: inset 0 6px 12px #0009, 0 0 0 3px var(--lime), 0 0 24px #8fd12f88; }
+.hole3d.up:active { box-shadow: inset 0 6px 12px #0009, 0 0 0 5px #fff; }
+.hole3d .moji {
+  font-size: 36px; line-height: 1;
+  transform: rotateX(-52deg) translateY(-16px) translateZ(26px);
+  transform-origin: 50% 100%;
+  animation: popUp .22s cubic-bezier(.2,1.5,.4,1);
+  filter: drop-shadow(0 6px 4px #0009);
+  user-select: none;
+}
+@keyframes popUp { from { transform: rotateX(-52deg) translateY(22px) translateZ(0) scale(.4) } }
+.popnum { position: absolute; pointer-events: none; font-size: 20px; font-weight: 900; color: #fff2a8; text-shadow: 2px 2px 0 #1d2540; animation: popnum .7s ease-out forwards; z-index: 8; }
+@keyframes popnum { to { transform: translateY(-56px) scale(1.4); opacity: 0 } }
+
+.shelf3d { perspective: 720px; width: min(500px, 96%); margin: 0 auto; }
+.shelf-row3d { display: flex; gap: 8px; justify-content: center; margin-bottom: 10px; transform: rotateX(20deg); transform-style: preserve-3d; }
+.slot3d {
+  flex: 1; aspect-ratio: 1; max-width: 96px; border-radius: 12px;
+  background: rgba(255,255,255,.1); border: 2px solid rgba(255,255,255,.26);
+  display: grid; place-items: center; font-size: 30px; cursor: pointer;
+  box-shadow: 0 7px 0 rgba(10,16,34,.8);
+  transition: transform .1s, background .1s;
+  user-select: none;
+}
+.slot3d.up { background: rgba(143,209,47,.22); border-color: var(--lime); }
+.slot3d:active { transform: translateY(5px); box-shadow: 0 2px 0 rgba(10,16,34,.8); }
+.slot3d.gone { opacity: .18; pointer-events: none; }
+.boss-portal {
+  position: absolute; left: 50%; top: 38%;
+  width: 220px; height: 220px; margin: -110px 0 0 -110px;
+  border-radius: 50%;
+  border: 8px solid rgba(213,132,255,.7);
+  box-shadow: 0 0 46px 12px rgba(213,132,255,.45), inset 0 0 40px rgba(255,209,102,.4);
+  animation: portalspin 5s linear infinite;
+  pointer-events: none;
+}
+
+/* ---------- 结算 ---------- */
+.result { text-align: center; padding: 26px 20px; position: relative; background: rgba(9,14,30,.72); border-radius: 24px; border: 2px solid rgba(255,255,255,.24); backdrop-filter: blur(8px); }
+.result h2 { font-size: clamp(25px, 5vw, 38px); margin: 6px 0; }
+.result .bigstars { font-size: 44px; letter-spacing: 7px; }
+.result .gain { display: inline-block; margin: 12px 0; background: #fff0c9; border: 2px solid var(--ink); border-radius: 99px; padding: 7px 18px; font-weight: 900; font-size: 17px; color: #1d2540; }
+.badges { display: flex; gap: 9px; flex-wrap: wrap; justify-content: center; margin: 10px 0 18px; }
+.badge { background: #f1ffdc; border: 2px solid var(--lime-d); color: #2f5e08; border-radius: 99px; padding: 5px 13px; font-weight: 900; font-size: 13px; }
+.result-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+
+/* 提示条放在顶部空白区，避免压住底部的选择卡 */
+.toast { top: 12px; bottom: auto; }
+
+/* ---------- 响应式 ---------- */
+@media (max-width: 700px) {
+  .game, .game-inner { min-height: 620px; }
+  .game-inner { padding: 10px 12px 14px; }
+  .game-hud { gap: 6px; }
+  .game-hud .tagx { padding: 5px 9px; font-size: 12px; }
+  .game-hud .hearts { font-size: 16px; letter-spacing: 1px; }
+  .game-hud .score-chip { display: none; }
+  .game-hud .btn.small { min-height: 30px; padding: 4px 9px; font-size: 12px; }
+  .mode-switch button { padding: 4px 8px; font-size: 11px; }
+  .eyebrow { font-size: 11px; padding: 4px 9px; margin-bottom: 6px; }
+  .scene-head { margin-top: 10px; padding: 8px 11px 10px; }
+  .scene-head h2 { font-size: 23px; }
+  .scene-head p { font-size: 12px; }
+  .play-area { min-height: 130px; }
+  .story { padding: 12px 14px; }
+  .story .en { font-size: 16px; }
+  .choice3d { min-height: 54px; font-size: 14px; padding: 9px 12px; }
+  .hole3d .moji { font-size: 28px; }
+  .holes3d { gap: 9px; padding: 12px; }
+  .set3d { opacity: .45; }
+  .mode-solid .set3d { opacity: .8; }
+  .sprite { width: 74px; height: 96px; }
+  .sprite.hero { display: none; }
+  .word3d { font-size: 12px; padding: 5px 10px; }
+  .toast { top: 10px; bottom: auto; font-size: 12px; max-width: 78%; }
+}
+@media (max-width: 380px) {
+  .game, .game-inner { min-height: 620px; }
+  .game-hud .tagx { padding: 5px 9px; font-size: 12px; }
+  .mode-switch button { padding: 4px 7px; font-size: 11px; }
+  .word3d { font-size: 12px; padding: 5px 9px; }
+  .slot3d { font-size: 23px; }
+}
+@media (min-width: 900px) and (orientation: landscape) {
+  .game, .game-inner { min-height: 740px; }
+  .game-inner { padding: 20px 32px 26px; }
+  .caption { max-width: 800px; }
+  .play-area { min-height: 250px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .layer > .drift, .pt, .sprite, .coil, .eye-ring, .portal-ring, .portal-core { animation: none !important; }
+  .camera { transition: none; }
+}
+
+/* ---------- 语音引导条 ---------- */
+.guide-bar {
+  display: flex; align-items: center; gap: 8px;
+  position: relative; z-index: 6;
+  width: 100%; max-width: 780px; margin: 0 0 10px;
+  padding: 8px 10px; border-radius: 14px;
+  background: linear-gradient(100deg, rgba(23, 32, 60, .93), rgba(40, 27, 74, .92));
+  border: 1px solid rgba(255, 255, 255, .3);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .3);
+  color: #f3f6ff; pointer-events: auto;
+  animation: guideIn .32s ease both;
+}
+/* 关闭语音时文字提示仍须清晰可读，仅用图标区分状态 */
+.guide-bar.off { opacity: .92; }
+.guide-ico { font-size: 17px; flex: 0 0 auto; }
+.guide-waves { display: flex; gap: 2px; align-items: flex-end; height: 14px; flex: 0 0 auto; opacity: .4; }
+.guide-waves i { width: 3px; height: 5px; border-radius: 2px; background: var(--accent, #8fd12f); }
+.guide-bar.speaking .guide-waves { opacity: 1; }
+.guide-bar.speaking .guide-waves i { animation: guideWave .7s ease-in-out infinite; }
+.guide-bar.speaking .guide-waves i:nth-child(2) { animation-delay: .14s; }
+.guide-bar.speaking .guide-waves i:nth-child(3) { animation-delay: .28s; }
+.guide-text { flex: 1 1 auto; font-size: 14px; font-weight: 800; line-height: 1.45; }
+.guide-btn {
+  flex: 0 0 auto; min-width: 32px; height: 30px; padding: 0 6px;
+  border: 1px solid rgba(255, 255, 255, .28); border-radius: 99px;
+  background: rgba(255, 255, 255, .1); color: #fff;
+  font-size: 13px; cursor: pointer;
+}
+.guide-btn:hover { background: var(--accent, #8fd12f); color: #16210b; }
+.guide-bar.cue-flash { animation: guideFlash .5s ease; }
+@keyframes guideIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+@keyframes guideFlash { 0% { box-shadow: 0 0 0 0 rgba(255, 225, 120, .6); } 100% { box-shadow: 0 0 0 12px rgba(255, 225, 120, 0); } }
+@keyframes guideWave { 0%, 100% { height: 4px; } 50% { height: 14px; } }
+.guide-pulse { animation: guidePulse 1.1s ease-in-out 3; }
+@keyframes guidePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 225, 110, 0); }
+  50% { box-shadow: 0 0 0 6px rgba(255, 225, 110, .5); }
+}
+
+/* ---------- 声音设置面板 ---------- */
+.game-hud .hud-icon { min-width: 32px; padding: 4px 8px; font-size: 14px; }
+.sound-panel {
+  position: absolute; right: 16px; top: 54px; z-index: 20;
+  width: 248px; padding: 12px; border-radius: 16px;
+  background: rgba(14, 20, 42, .96);
+  border: 1px solid rgba(255, 255, 255, .3);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, .48);
+  backdrop-filter: blur(8px);
+  color: #eef2ff; pointer-events: auto;
+}
+.sound-panel[hidden] { display: none; }
+.sp-title { display: flex; flex-direction: column; gap: 3px; font-size: 14px; font-weight: 900; margin-bottom: 10px; }
+.sp-title span { font-size: 11px; color: #b9c6f0; font-weight: 700; }
+.sp-row {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  margin-bottom: 6px; padding: 7px 9px; border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, .14);
+  background: rgba(255, 255, 255, .06); color: #eaf0ff;
+  font-size: 12px; font-weight: 800; text-align: left; cursor: pointer;
+}
+.sp-row.on { background: rgba(143, 209, 47, .18); border-color: rgba(143, 209, 47, .55); }
+.sp-ico { font-size: 15px; }
+.sp-label { flex: 1; }
+.sp-state { font-size: 11px; padding: 2px 7px; border-radius: 99px; background: rgba(255, 255, 255, .12); }
+.sp-row.on .sp-state { background: var(--accent, #8fd12f); color: #16210b; }
+.sp-note { margin: 8px 2px 0; font-size: 11px; color: #aab6df; line-height: 1.5; }
+
+@media (max-width: 700px) {
+  .guide-bar { padding: 6px 8px; gap: 6px; margin-bottom: 8px; }
+  .guide-text { font-size: 12.5px; }
+  .guide-btn { min-width: 28px; height: 28px; font-size: 12px; }
+  /* 引导条自带重听按钮，手机端收起 HUD 里的重复入口，让顶栏保持两行 */
+  .game-hud #narrate, .game-hud .spacer { display: none; }
+  .game-hud .hud-icon { min-width: 28px; padding: 4px 6px; font-size: 13px; }
+  .sound-panel { right: 8px; top: 92px; width: min(240px, calc(100% - 16px)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .guide-bar, .guide-bar.speaking .guide-waves i, .guide-pulse { animation: none !important; }
+}
+
+/* flex 列容器里 caption / 引导条不允许被压缩，否则会溢出压住结算卡片或选择卡 */
+.game-hud, .scene-head, .caption, .guide-bar { flex: 0 0 auto; }
+.play-area { flex: 1 1 auto; }
+.result { max-width: min(680px, 100%); }
+/* 结算卡片从顶部排布，避免 grid 垂直居中时向上溢出压住引导条 / 标题 */
+.play-area.result-area { display: block; padding: 10px 0 16px; }
+.play-area.result-area .result { margin: 0 auto; }
+@media (prefers-reduced-motion: reduce) {
+  .guide-bar, .guide-bar.speaking .guide-waves i, .guide-pulse { animation: none !important; }
+}
