@@ -77829,8 +77829,12 @@ function onChange(cb) {
 
 async function pickDevice() {
   try {
-    const adapter = await navigator.gpu?.requestAdapter?.();
-    return adapter ? 'webgpu' : 'wasm';
+    // Headless software WebGPU can take the model stream and never finish session init.
+    if (/HeadlessChrome/i.test(navigator.userAgent || '')) return 'wasm';
+    if (!navigator.gpu?.requestAdapter) return 'wasm';
+    const adapter = await navigator.gpu.requestAdapter();
+    if (!adapter || adapter.isFallbackAdapter) return 'wasm';
+    return 'webgpu';
   } catch { return 'wasm'; }
 }
 
@@ -77874,8 +77878,9 @@ async function loadModel() {
       engine = await KokoroTTS.from_pretrained(MODEL_ID, options);
     } catch (error) {
       if (device !== 'webgpu') throw error;
-      // WebGPU 初始化失败 → 回退 WASM（更慢但能用）。
+      // WebGPU 初始化失败 → 回退单线程 WASM。不要和仍在读模型的第一次加载并行。
       state.device = 'wasm';
+      state.stage = 'initializing';
       emit();
       engine = await KokoroTTS.from_pretrained(MODEL_ID, { ...options, device: 'wasm' });
     }

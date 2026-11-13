@@ -7,47 +7,15 @@
 
 if (typeof self.window === 'undefined') self.window = self;
 
-const ENGINE_URL = new URL('./kokoro-tts.js?v=20261113phonon', import.meta.url);
-const RUNTIME_CACHE = 'kidsreading-phonon-runtime-v1';
-const BIG_FILE = 32 * 1024 * 1024;
+const ENGINE_URL = new URL('./kokoro-tts.js?v=20261113phonon5', import.meta.url);
 
 let modelFetches = 0;
 let modelBlob = null;
-const onnxLoads = new Map();
 let enginePromise = null;
 let loadPromise = null;
 let queue = null;
 let statusTimer = null;
 let pendingStatus = null;
-const nativeFetch = self.fetch.bind(self);
-
-function urlOf(input) {
-  if (typeof input === 'string') return input;
-  if (input && typeof input.url === 'string') return input.url;
-  return String(input || '');
-}
-
-function parsedUrl(url) {
-  return new URL(url, self.location.href);
-}
-
-function isCrossOrigin(url) {
-  try {
-    const parsed = parsedUrl(url);
-    if (parsed.protocol === 'blob:' || parsed.protocol === 'data:') return false;
-    return parsed.origin !== self.location.origin;
-  } catch {
-    return true;
-  }
-}
-
-function isOnnx(url) {
-  return /\.onnx(?:$|[?#])/.test(url);
-}
-
-function hex(buffer) {
-  return [...new Uint8Array(buffer)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
-}
 
 function flushStatus() {
   if (!pendingStatus) return;
@@ -71,75 +39,15 @@ function postStatus(snapshot, force) {
   }, 100);
 }
 
-self.fetch = async (input, init) => {
-  const url = urlOf(input);
-  if (isCrossOrigin(url)) {
-    throw new Error('离线语音只读取本站文件，已拒绝外部地址');
-  }
-  if (isOnnx(url)) {
-    const headersFor = (blob) => ({
-      'content-type': 'application/octet-stream',
-      'content-length': String(blob.size)
-    });
-    if (modelBlob) return new Response(modelBlob, { status: 200, headers: headersFor(modelBlob) });
-    const key = parsedUrl(url).pathname;
-    const existing = onnxLoads.get(key);
-    if (existing) {
-      const blob = await existing;
-      return new Response(blob, { status: 200, headers: headersFor(blob) });
-    }
-    modelFetches += 1;
-    let resolveBlob;
-    let rejectBlob;
-    const blobPromise = new Promise((resolve, reject) => { resolveBlob = resolve; rejectBlob = reject; });
-    onnxLoads.set(key, blobPromise);
-    try {
-      const response = await nativeFetch(input, init);
-      if (!response.ok || !response.body) throw new Error('语音模型请求失败 ' + response.status);
-      const copies = response.body.tee();
-      new Response(copies[1]).blob().then(async (blob) => {
-        try {
-          const buffer = await blob.arrayBuffer();
-          const sha256 = hex(await crypto.subtle.digest('SHA-256', buffer));
-          self.postMessage({
-            type: 'model-downloaded',
-            bytes: buffer.byteLength,
-            sha256,
-            buffer
-          }, [buffer]);
-        } catch { /* cache store is best-effort; synthesis can still use this copy */ }
-        resolveBlob(blob);
-      }, (error) => {
-        onnxLoads.delete(key);
-        rejectBlob(error);
-      });
-      return new Response(copies[0], { status: response.status, headers: response.headers });
-    } catch (error) {
-      onnxLoads.delete(key);
-      rejectBlob(error);
-      throw error;
-    }
-  }
-
-  const path = parsedUrl(url).pathname;
-  if (path.startsWith('/tts/') && typeof caches !== 'undefined') {
-    const cache = await caches.open(RUNTIME_CACHE);
-    const key = new Request(parsedUrl(url).origin + path);
-    const hit = await cache.match(key);
-    if (hit) return hit;
-    const response = await nativeFetch(input, init);
-    const length = Number(response.headers.get('content-length') || 0);
-    if (response.ok && length > 0 && length <= BIG_FILE) {
-      cache.put(key, response.clone()).catch(() => {});
-    }
-    return response;
-  }
-  return nativeFetch(input, init);
-};
+function claimMessage() {
+  if (self.onmessage !== dispatch) self.onmessage = dispatch;
+}
 
 function getEngine() {
   if (!enginePromise) {
     enginePromise = import(ENGINE_URL).then((mod) => {
+      // The ONNX bundle installs its own worker message handler on import.
+      claimMessage();
       const engine = (mod && (mod.default || mod)) || null;
       if (!engine || typeof engine.synthesize !== 'function' || typeof engine.load !== 'function') {
         throw new Error('离线语音引擎加载失败');
@@ -161,6 +69,7 @@ function loadModel() {
     loadPromise = (async () => {
       const engine = await getEngine();
       await engine.load();
+      claimMessage();
       postStatus(typeof engine.status === 'function' ? engine.status() : { ready: true, stage: 'ready' }, true);
       return engine;
     })().catch((error) => {
@@ -202,7 +111,7 @@ function fail(requestId, error) {
   });
 }
 
-self.onmessage = (event) => {
+function dispatch(event) {
   const msg = event.data || {};
   if (msg.type === 'use-model') {
     modelBlob = msg.blob || null;
@@ -222,6 +131,7 @@ self.onmessage = (event) => {
     return;
   }
   if (msg.type === 'synthesize') {
+    postStatus({ stage: 'synthesizing', ready: true, loading: true }, true);
     ensureQueue()
       .then((q) => {
         q.enqueue({
@@ -248,7 +158,9 @@ self.onmessage = (event) => {
   if (msg.type === 'cancel') {
     if (queue) queue.cancel(msg.ids || []);
   }
-};
+}
+self.onmessage = dispatch;
+setInterval(claimMessage, 100);
 
 self.addEventListener('unhandledrejection', (event) => {
   fail(0, event.reason);

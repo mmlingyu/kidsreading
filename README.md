@@ -4,10 +4,13 @@ Static site. Open `index.html` through a web server. There is no build step, pac
 
 Hash routes, handled in the browser:
 
-- `#/home`
+- `#/home` bookshelf
+- `#/book/:id` switches the active book, then opens its map
 - `#/map`
 - `#/read/:id`
 - `#/game/:id`
+
+Two ready books are registered in `data/bookshelf.js`: The Last Kids on Earth (`tlkoe`, 8 chapters) and Mister Shivers (`mister-shivers`, 6 chapters, scenes 101–106). Progress is stored per book. A third shelf slot is marked coming soon.
 
 Progress stays in `localStorage`. English reading defaults to offline Phonon (`af_maple`); Chinese guidance uses `zf_001`. Both run in a browser worker from same-origin files. Browser speech is a visible fallback only. Music and effects stay on the existing Web Audio graph. Nothing is uploaded.
 

@@ -10,6 +10,8 @@ const AMBIENT = {
   1: "weather/clouds", 2: "weather/fireflies", 3: "lightning/charge-up",
   4: "weather/clouds", 5: "shadow/grasping-hands", 6: "weather/fireflies",
   7: "arcane/portal", 8: "shadow/dark-explosion",
+  101: "weather/fireflies", 102: "weather/clouds", 103: "weather/fireflies",
+  104: "weather/clouds", 105: "weather/fireflies", 106: "weather/fireflies",
 };
 
 export function mountGame(root, ch, hooks) {
@@ -34,13 +36,14 @@ export function mountGame(root, ch, hooks) {
   const gameEl = root.querySelector("#game");
   const inner = root.querySelector("#game-inner");
   const stage = new Stage(gameEl, ch);
-  const cfg = SCENES[ch.id] || SCENES[1];
+  const sceneKey = ch.scene || ch.id;
+  const cfg = SCENES[sceneKey] || SCENES[1];
   const canvas = stage.fxCanvas;
   const fx = new FxStage(canvas);
   const guide = new Guide(ch);
   fx.start();
-  fx.setAmbient(AMBIENT[ch.id] || "weather/fireflies", { light: 0.55 });
-  sound.setScene(ch.id, cfg.audio);
+  fx.setAmbient(AMBIENT[sceneKey] || "weather/fireflies", { light: 0.55 });
+  sound.setScene(sceneKey, cfg.audio);
 
   // 浏览器自动播放策略：首次任意手势里解锁 AudioContext
   const unlockOnce = () => { sound.unlock(); root.removeEventListener("pointerdown", unlockOnce); };
@@ -81,7 +84,7 @@ export function mountGame(root, ch, hooks) {
     const row = (key, icon, label, on) => `<button class="sp-row ${on ? "on" : ""}" data-key="${key}">
       <span class="sp-ico">${icon}</span><span class="sp-label">${label}</span><span class="sp-state">${on ? "开" : "关"}</span></button>`;
     return `<div class="sound-panel" id="sound-panel" hidden>
-      <div class="sp-title">🎚 声音设置 <span>${esc((SCORES[ch.id] || SCORES[1]).name)}</span></div>
+      <div class="sp-title">🎚 声音设置 <span>${esc((SCORES[sceneKey] || SCORES[1]).name)}</span></div>
       ${row("amb", "🌬", "场景环境音", sound.layers.amb)}
       ${row("music", "🎵", "场景配乐", sound.layers.music)}
       ${row("sfx", "🔔", "交互提示音", sound.layers.sfx)}
@@ -527,7 +530,7 @@ export function mountGame(root, ch, hooks) {
     setTimeout(() => { fx.burst("ui/confetti", { light: 1 }); fx.burst("ui/achievement"); }, 140);
 
     const nextId = ch.id + 1;
-    const hasNext = nextId <= 8;
+    const hasNext = nextId <= (S.chapterCount || 8);
     inner.innerHTML = `
       ${hud()}${soundPanelHtml()}
       <div class="scene-head"><span class="eyebrow">${esc(cfg.label)} · 胜利定格</span><h2>CHAPTER ${ch.id} CLEAR!</h2><p>${esc(g.title)} · ${esc(g.zh)}</p></div>
@@ -540,7 +543,7 @@ export function mountGame(root, ch, hooks) {
         </p>
         <div class="gain">+${xp} XP　·　🎯 ${score} 分　·　❤️ ${hp}/3</div>
         <div class="badges">${gainedItems.map((i) => `<span class="badge">🏅 ${esc(i)}</span>`).join("") || '<span class="badge">🏅 勇敢者徽章</span>'}</div>
-        <p style="font-weight:900;color:#ffe6a0">${hasNext ? `🔓 第 ${nextId} 章已解锁！` : "🎉 全书通关！你是地球上最后的孩子！"}</p>
+        <p style="font-weight:900;color:#ffe6a0">${hasNext ? `🔓 第 ${nextId} 章已解锁！` : "🎉 全书通关！你是最勇敢的小读者！"}</p>
         <div class="result-actions">
           ${hasNext ? '<button class="btn primary" id="go-next">📖 进入下一章</button>' : ""}
           <button class="btn orange" id="go-map">🗺 返回章节地图</button>

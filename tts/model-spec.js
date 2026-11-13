@@ -10,7 +10,7 @@ export const MODEL_SPEC = {
   sha256: "94b973941b1852754f979be5d5e20be666d5c81d9bb886b88ae1dc85c9b895ca",
   path: "/tts/models/onnx-community/Kokoro-82M-v1.1-zh-ONNX/onnx/model.onnx",
   voices: { en: "af_maple", zh: "zf_001" },
-  runtimeCache: "kidsreading-phonon-runtime-v1",
+  runtimeCache: "kidsreading-phonon-runtime-v3",
   idbName: "kidsreading-phonon",
   idbStore: "files",
   markerKey: "kidsreading-phonon-cache-marker",

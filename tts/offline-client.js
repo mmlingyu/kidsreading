@@ -2,7 +2,7 @@
  * Adapted from zhidao-web public/tts/offline-client.js.
  * Synthesis stays in the worker. If the worker cannot start, this module
  * refuses to import the ONNX bundle on the page thread. */
-const WORKER_URL = new URL('./kokoro-worker.js?v=20261113phonon', import.meta.url);
+const WORKER_URL = new URL('./kokoro-worker.js?v=20261113phonon6', import.meta.url);
 
 const listeners = new Set();
 const pending = new Map();
@@ -98,7 +98,10 @@ function ensureWorker() {
       return;
     }
     if (msg.type === 'model-downloaded' && downloadedHandler) {
-      Promise.resolve(downloadedHandler(msg)).catch(() => {});
+      const schedule = typeof requestIdleCallback === 'function'
+        ? (fn) => requestIdleCallback(fn, { timeout: 4000 })
+        : (fn) => setTimeout(fn, 0);
+      schedule(() => { Promise.resolve(downloadedHandler(msg)).catch(() => {}); });
       return;
     }
     if (msg.type === 'model-ready' || msg.type === 'loaded') {

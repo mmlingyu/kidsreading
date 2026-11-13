@@ -16,6 +16,7 @@ let chain = Promise.resolve();
 let cursor = 0;
 let usingBrowser = false;
 let banner = null;
+let lastSnap = null;
 let warmed = false;
 const liveSources = new Set();
 const aborters = new Set();
@@ -60,7 +61,10 @@ async function getClient() {
       const client = mod.default || mod;
       client.onModelDownloaded(async (msg) => {
         try {
-          await storeModel(msg.buffer, msg.sha256);
+          const buffer = await msg.blob.arrayBuffer();
+          const digest = await crypto.subtle.digest("SHA-256", buffer);
+          const sha256 = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+          await storeModel(buffer, sha256);
           paint({ stage: "cached", error: "" });
         } catch (error) {
           const mismatch = error && error.name === "ModelMismatch";
@@ -81,6 +85,27 @@ async function getClient() {
   return clientPromise;
 }
 
+async function archiveModel() {
+  try {
+    if (await readValidModel()) return;
+    const response = await fetch(MODEL_SPEC.path);
+    if (!response.ok) return;
+    const buffer = await response.arrayBuffer();
+    const digest = await crypto.subtle.digest("SHA-256", buffer);
+    const sha256 = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+    await storeModel(buffer, sha256);
+    paint({ stage: "cached", error: "" });
+  } catch (error) {
+    const mismatch = error && error.name === "ModelMismatch";
+    paint({
+      stage: "failed",
+      error: mismatch
+        ? "下载到的语音模型和清单不一致，没有写入缓存。"
+        : "这次能合成，但浏览器没有把约 324 MB 的模型存下来，下次可能还要下载。"
+    });
+  }
+}
+
 async function ensureEngine(silent) {
   if (enginePromise) return enginePromise;
   enginePromise = (async () => {
@@ -90,6 +115,7 @@ async function ensureEngine(silent) {
     const client = await getClient();
     if (record) await client.useCachedModel(record.blob);
     await client.load();
+    if (!record) archiveModel();
     usingBrowser = false;
     if (cached || silent) hideBanner();
     return client;
@@ -119,6 +145,7 @@ function hideBanner() {
 }
 
 function paint(snap) {
+  if (snap) lastSnap = { ...(lastSnap || {}), ...snap };
   const panel = ensureBanner();
   if (!panel || !snap) return;
   const failed = snap.stage === "failed" || Boolean(snap.error);
@@ -170,7 +197,9 @@ function playBuffer(ctx, audio, gen) {
   source.buffer = buffer;
   source.connect(ctx.destination);
   const when = Math.max(ctx.currentTime + 0.05, cursor || 0);
-  source.start(when);
+  let played = true;
+  try { source.start(when); }
+  catch { played = false; }
   const duration = samples.length / sampleRate;
   cursor = when + duration;
   liveSources.add(source);
@@ -185,9 +214,10 @@ function playBuffer(ctx, audio, gen) {
     peak: audio.stats.peak,
     rms: audio.stats.rms,
     audible: audio.stats.audible,
+    played,
     generation: gen
   });
-  return { source, duration };
+  return { source, duration, played };
 }
 
 function browserSpeak(text, opts, gen) {
@@ -246,7 +276,10 @@ async function speakNow(text, opts, gen) {
     const ctx = unlockSpeech();
     if (!ctx) return browserSpeak(text, { ...opts, failure: "无法打开 Web Audio，这次改用浏览器语音。" }, gen);
     if (ctx.state === "suspended") {
-      try { await ctx.resume(); } catch { /* autoplay may reject outside a gesture */ }
+      await Promise.race([
+        ctx.resume().catch(() => {}),
+        new Promise((resolve) => setTimeout(resolve, 400))
+      ]);
     }
     let played = false;
     for (const chunk of chunks) {
@@ -276,7 +309,10 @@ async function speakNow(text, opts, gen) {
     }
     if (!played) return false;
     if (remaining === 0) finish("end");
+    const playbackMs = Math.max(800, Math.ceil(Math.max(0, cursor - (ctx.currentTime || 0)) * 1000) + 600);
+    const backup = setTimeout(() => finish("end"), playbackMs);
     const why = await gate;
+    clearTimeout(backup);
     if (why !== "end" || gen !== generation) return false;
     opts.onend?.();
     notify({ type: "ended", engine: "phonon", generation: gen });
@@ -300,7 +336,7 @@ export function startSpeech(text, rate = 0.92) {
 }
 
 export function speechStatus() {
-  return { generation, usingBrowser, engine: usingBrowser ? "browser" : "phonon" };
+  return { generation, usingBrowser, engine: usingBrowser ? "browser" : "phonon", snap: lastSnap };
 }
 
 export async function retrySpeech() {
@@ -346,8 +382,14 @@ function scheduleWarmup() {
   else idle();
 }
 
+function registerRuntimeWorker() {
+  if (typeof navigator === "undefined" || !navigator.serviceWorker) return;
+  navigator.serviceWorker.register("/phonon-sw.js").catch(() => {});
+}
+
 if (typeof window !== "undefined") {
   window.addEventListener("pointerdown", () => { unlockSpeech(); }, { capture: true });
+  registerRuntimeWorker();
   scheduleWarmup();
 }
 
