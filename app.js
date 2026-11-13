@@ -1,5 +1,5 @@
 import { BOOK, CHAPTERS } from "./data/book.js";
-import { S, save, addXp, addWord, reset, toast, speak, esc } from "./state.js";
+import { S, save, addXp, addWord, reset, toast, speak, esc, cancelSpeech } from "./state.js";
 import { mountGame } from "./game.js";
 
 const app = document.getElementById("app");
@@ -75,7 +75,7 @@ function viewHome() {
     </div>
     <div style="margin-top:22px;text-align:center;color:var(--ink-2);font-size:12px;font-weight:700;line-height:1.8">
       本作品为《The Last Kids on Earth》的原创简化改写，仅用于个人英语学习原型，非原书文本 · 章节插画为 AI 生成<br>
-      章末像素特效来自 pixelfx (MIT License, Patch / Hugo Duprez)，版权见 vendor/pixelfx/LICENSE · 场景配乐、环境音、交互提示音与中文语音引导均在本机实时合成 / 调用系统语音，无外部音频文件
+      章末像素特效来自 pixelfx (MIT License, Patch / Hugo Duprez)，版权见 vendor/pixelfx/LICENSE · 英文朗读默认离线 Phonon（af_maple），中文引导用 zf_001；失败时才标明改用浏览器语音。配乐与音效仍在本机合成
     </div>`, { home: true });
 
   bindShell();
@@ -273,7 +273,7 @@ function startGame(ch) {
 }
 
 function render() {
-  if (window.speechSynthesis) window.speechSynthesis.cancel();
+  cancelSpeech();
   if (popup) { popup.remove(); popup = null; }
   const parts = (location.hash || "#/home").split("/");
   const view = parts[1] || "home";

@@ -100,6 +100,13 @@ class SoundEngine {
     return true;
   }
 
+  // Narration uses this context and connects past the music bus, so duck/mute
+  // still shape the score without silencing or replacing speech.
+  playbackContext() {
+    if (!this.unlock()) return null;
+    return this.ctx;
+  }
+
   applyGains(fast = false) {
     if (!this.ctx) return;
     const t = this.ctx.currentTime, tc = fast ? 0.05 : 0.32;

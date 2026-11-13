@@ -1,4 +1,6 @@
 // 全局状态：进度、解锁、XP、单词本、设置（localStorage 持久化）
+import { cancelSpeech, queueSpeech, startSpeech, unlockSpeech } from "./speech.js";
+
 const KEY = "last-kids-reader-v1";
 
 const DEFAULT = {
@@ -60,29 +62,17 @@ export function toast(msg) {
   el._t = setTimeout(() => el.classList.remove("show"), 1900);
 }
 
-// 生成一条语音并加入朗读队列。lang 可指定 en-US / zh-CN，用于「英文旁白 + 中文引导」连读。
+export { cancelSpeech, unlockSpeech };
+
+// 全书、段落、单词和语音引导都走这里。默认离线 Phonon；pitch 只在浏览器兜底时生效。
 export function utter(text, { lang = "en-US", rate = 0.92, pitch = 1.05, onend = null } = {}) {
-  if (!("speechSynthesis" in window) || !text) return null;
-  const u = new SpeechSynthesisUtterance(String(text).replace(/["“”]/g, ""));
-  u.lang = lang;
-  u.rate = rate;
-  u.pitch = pitch;
-  try {
-    const prefix = lang.slice(0, 2).toLowerCase();
-    const voices = window.speechSynthesis.getVoices() || [];
-    const v = voices.find((x) => x.lang && x.lang.toLowerCase().replace("_", "-") === lang.toLowerCase())
-      || voices.find((x) => x.lang && x.lang.toLowerCase().startsWith(prefix));
-    if (v) u.voice = v;
-  } catch {}
-  if (onend) u.onend = onend;
-  try { window.speechSynthesis.speak(u); } catch { return null; }
-  return u;
+  if (!text) return Promise.resolve(false);
+  return queueSpeech(text, { lang, rate, pitch, onend });
 }
 
 export function speak(text, rate = 0.92) {
-  if (!S.settings.tts || !("speechSynthesis" in window) || !text) return null;
-  window.speechSynthesis.cancel();
-  return utter(text, { rate });
+  if (!S.settings.tts || !text) return Promise.resolve(false);
+  return startSpeech(text, rate);
 }
 
 export const esc = (s = "") => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));

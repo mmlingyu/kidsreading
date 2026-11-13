@@ -2,7 +2,7 @@
 // 英文剧情旁白与中文引导按队列依次朗读，互不打断；朗读期间自动压低环境音与配乐。
 // 引导语音可独立开关、可重听；同一类提示在一局冒险里只念一次，避免打扰。
 import { sound } from "./audio.js";
-import { S, utter, esc, toast } from "./state.js";
+import { S, utter, esc, toast, cancelSpeech, unlockSpeech } from "./state.js";
 
 export const HINTS = {
   welcome: (ch) => `第 ${ch} 章冒险开始！`,
@@ -62,9 +62,7 @@ export class Guide {
       bar.classList.toggle("off", !on);
       toggle.textContent = on ? "🗣" : "🔇";
       bar.querySelector(".guide-ico").textContent = on ? "🗣" : "🔇";
-      if (!on && "speechSynthesis" in window) {
-        try { window.speechSynthesis.cancel(); } catch {}
-      }
+      if (!on) cancelSpeech();
       toast(on ? "语音引导已开启" : "语音引导已关闭，文字提示仍在");
     };
     if (this.speaking) bar.classList.add("speaking");
@@ -88,27 +86,22 @@ export class Guide {
     if (pulse) this.pulse(pulse);
     if (!fresh) { this.setSpeaking(false); return; }
 
-    if (!("speechSynthesis" in window)) return;
-    try { window.speechSynthesis.cancel(); } catch {}
+    cancelSpeech();
+    unlockSpeech();
     const wantEn = S.settings.tts && !!en;
     const wantZh = sound.guideOn && !!zh;
     if (!wantEn && !wantZh) return;
 
-    const est = (wantEn ? Math.min(6500, en.length * 68 + 900) : 0)
-      + (wantZh ? Math.min(5200, zh.length * 165 + 700) : 0) + 350;
-    sound.duck(Math.min(11000, est));
+    sound.duck(4000);
     if (wantZh) sound.play("cue");
     this.setSpeaking(true);
-
-    if (wantEn) utter(en, { rate: 0.92 });
-    if (wantZh) {
-      utter(zh, {
-        lang: "zh-CN", rate: 1.0, pitch: 1.12,
-        onend: () => { if (token === this.token) this.setSpeaking(false); },
-      });
-    }
-    // 部分浏览器 / 无语音引擎环境不触发 onend，定时兜底收回声波动画
-    const t = setTimeout(() => { if (token === this.token) this.setSpeaking(false); }, est);
+    const jobs = [];
+    if (wantEn) jobs.push(utter(en, { lang: "en-US", rate: 0.92 }));
+    if (wantZh) jobs.push(utter(zh, { lang: "zh-CN", rate: 1.0, pitch: 1.12 }));
+    Promise.all(jobs).then(() => {
+      if (token === this.token) this.setSpeaking(false);
+    });
+    const t = setTimeout(() => { if (token === this.token) this.setSpeaking(false); }, 120000);
     this.timers.push(t);
   }
 
