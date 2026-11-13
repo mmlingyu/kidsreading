@@ -90,6 +90,75 @@ export const SCENES = {
     set: "portal", tilt: 0, zoom: 1.12,
     accent: "#ffd166",
     audio: { drone: { freq: 52, vol: .06 }, hum: { freq: 330, vol: .03, type: "triangle" }, event: "portal", eventEvery: [3800, 7000] }
+  },
+
+  // ---------- 第二本《Mister Shivers》· 4-6 岁低龄线 ----------
+  // 场景键 101-106 与 book2.js 各章的 scene 字段对应，按该册官方封面的构图复刻。
+  101: {
+    key: "bedroom", label: "卧室 · 床底低机位 · 暖黄夜灯",
+    sky: ["#6b5f9e", "#3d3768", "#221f42"], sun: "#ffe3a8", sunAt: [78, 26],
+    haze: "rgba(255,214,150,.16)", grade: "warm",
+    far: "bedroom", fore: "bed", artPos: "center 50%",
+    particle: "spark", particleColor: "#ffe9b0",
+    actors: ["monster", "shadow"], hero: "kid",
+    set: "bedroom", tilt: -2, zoom: 1.05,
+    accent: "#ffca7a",
+    audio: { noise: { type: "lowpass", freq: 360, vol: .07 }, event: "spark", eventEvery: [3600, 7200] }
+  },
+  102: {
+    key: "woods", label: "回家小路 · 树林剪影 · 蓝紫黄昏",
+    sky: ["#8fb6d8", "#5f6fa8", "#2c335e"], sun: "#ffe9c0", sunAt: [22, 18],
+    haze: "rgba(180,200,255,.18)", grade: "cool",
+    far: "forest", fore: "branches", artPos: "center 48%",
+    particle: "leaf", particleColor: "#c9e6b0",
+    actors: ["owl", "shadow"], hero: "kid",
+    set: "forest", tilt: -1, zoom: 1.06,
+    accent: "#9fd97a",
+    audio: { noise: { type: "lowpass", freq: 520, vol: .1 }, event: "bird", eventEvery: [3200, 6400] }
+  },
+  103: {
+    key: "dollhall", label: "长走廊 · 门边娃娃 · 一点透视",
+    sky: ["#6e6a97", "#403d68", "#201e3c"], sun: "#ffedcf", sunAt: [50, 12],
+    haze: "rgba(200,190,255,.14)", grade: "cool",
+    far: "door", fore: "lockers", artPos: "center 50%",
+    particle: "dust", particleColor: "#e2dcff",
+    actors: ["monster", "shadow"], hero: "kid",
+    set: "hallway", tilt: 0, zoom: 1.09,
+    accent: "#c5a8ff",
+    audio: { hum: { freq: 110, vol: .03, lfo: .4 }, noise: { type: "lowpass", freq: 280, vol: .06 }, event: "step", eventEvery: [3400, 6800] }
+  },
+  104: {
+    key: "newwall", label: "新房间 · 墙面与窗 · 清晨",
+    sky: ["#ffe0b0", "#ffb98f", "#f08f8a"], sun: "#fff6d8", sunAt: [76, 22],
+    haze: "rgba(255,220,170,.20)", grade: "bright",
+    far: "bedroom", fore: "window", artPos: "center 46%",
+    particle: "dust", particleColor: "#fff0c4",
+    actors: ["monster"], hero: "kid",
+    set: "bedroom", tilt: 0, zoom: 1.04,
+    accent: "#ffd166",
+    audio: { noise: { type: "lowpass", freq: 620, vol: .08 }, event: "bird", eventEvery: [3800, 7600] }
+  },
+  105: {
+    key: "mirror", label: "镜前 · 柔光圆环 · 薄荷夜",
+    sky: ["#7fd3c9", "#4c91a8", "#2b4c72"], sun: "#eafff6", sunAt: [50, 20],
+    haze: "rgba(190,255,240,.18)", grade: "bright",
+    far: "door", fore: "window", artPos: "center 48%",
+    particle: "spark", particleColor: "#c9fff0",
+    actors: ["shadow", "monster"], hero: "kid",
+    set: "mirror", tilt: 0, zoom: 1.07,
+    accent: "#7ee0c8",
+    audio: { hum: { freq: 180, vol: .025, type: "triangle" }, noise: { type: "lowpass", freq: 480, vol: .06 }, event: "spark", eventEvery: [3000, 6200] }
+  },
+  106: {
+    key: "darkwalk", label: "黑走廊 · 手拉手 · 灯亮前",
+    sky: ["#3b3c70", "#242548", "#12132b"], sun: "#fff0c0", sunAt: [50, 10],
+    haze: "rgba(150,170,255,.10)", grade: "cool",
+    far: "door", fore: "lockers", artPos: "center 52%",
+    particle: "spark", particleColor: "#ffe9a8",
+    actors: ["shadow", "shadow"], hero: "kid",
+    set: "hallway", tilt: -1, zoom: 1.1,
+    accent: "#ffd166",
+    audio: { hum: { freq: 90, vol: .03, lfo: .3 }, noise: { type: "lowpass", freq: 240, vol: .06 }, event: "step", eventEvery: [3000, 6000] }
   }
 };
 
@@ -154,6 +223,25 @@ function farShape(kind) {
         `<rect x="0" y="60" width="1200" height="240" fill="currentColor" opacity=".45"/>` +
         `<rect x="510" y="120" width="180" height="180" fill="currentColor"/>` +
         `<rect x="530" y="140" width="140" height="140" fill="#fff" opacity=".12"/>`, "far-svg");
+    case "bedroom":
+      return svg("0 0 1200 300",
+        `<rect x="0" y="90" width="1200" height="210" fill="currentColor" opacity=".40"/>` +
+        `<rect x="120" y="70" width="260" height="190" rx="10" fill="currentColor"/>` +
+        `<rect x="138" y="88" width="224" height="154" fill="#fff" opacity=".13"/>` +
+        `<path d="M250 70 L250 260 M138 165 L362 165" stroke="#fff" stroke-width="8" opacity=".18"/>` +
+        `<rect x="820" y="130" width="230" height="150" rx="8" fill="currentColor"/>` +
+        `<rect x="840" y="150" width="190" height="110" fill="#fff" opacity=".10"/>` +
+        `<rect x="0" y="280" width="1200" height="20" fill="currentColor"/>`, "far-svg");
+    case "forest": {
+      let s = "";
+      for (let i = 0; i < 11; i++) {
+        const x = i * 118 - 40, h = 150 + ((i * 9) % 6) * 26;
+        s += `<rect x="${x + 48}" y="${300 - h}" width="16" height="${h}" fill="currentColor"/>`;
+        s += `<circle cx="${x + 56}" cy="${300 - h}" r="58" fill="currentColor"/>`;
+      }
+      s += `<rect x="0" y="282" width="1200" height="18" fill="currentColor"/>`;
+      return svg("0 0 1200 300", s, "far-svg");
+    }
     default: return "";
   }
 }
@@ -202,6 +290,19 @@ function foreShape(kind) {
       return svg("0 0 1200 700",
         `<path d="M0 700 L0 590 L140 640 L260 600 L380 660 L520 610 L660 660 L800 605 L940 655 L1080 610 L1200 650 L1200 700 Z" fill="currentColor"/>` +
         `<path d="M0 0 L0 300 L60 260 L90 120 L40 0 Z" fill="currentColor"/><path d="M1200 0 L1200 320 L1140 270 L1110 100 L1160 0 Z" fill="currentColor"/>`, "fore-svg");
+    case "bed":
+      return svg("0 0 1200 700",
+        `<rect x="0" y="0" width="1200" height="86" fill="currentColor"/>` +
+        `<path d="M0 86 q300 46 600 12 q300 -34 600 12 L1200 0 L0 0 Z" fill="currentColor"/>` +
+        `<path d="M0 700 L0 590 Q260 560 520 596 L1200 590 L1200 700 Z" fill="currentColor"/>` +
+        `<rect x="0" y="676" width="1200" height="24" fill="currentColor"/>`, "fore-svg");
+    case "window":
+      return svg("0 0 1200 700",
+        `<rect x="0" y="0" width="150" height="700" fill="currentColor"/>` +
+        `<rect x="1050" y="0" width="150" height="700" fill="currentColor"/>` +
+        `<path d="M0 0 q75 220 0 440" stroke="#fff" stroke-width="10" fill="none" opacity=".12"/>` +
+        `<path d="M1200 0 q-75 220 0 440" stroke="#fff" stroke-width="10" fill="none" opacity=".12"/>` +
+        `<rect x="0" y="0" width="1200" height="46" fill="currentColor"/>`, "fore-svg");
     default: return "";
   }
 }
@@ -259,6 +360,38 @@ function sprite(kind) {
         <path d="M43 54 q7 6 14 0" stroke="#1d2540" stroke-width="2.5" fill="none"/>
         <path d="M84 30 L84 108" stroke="#a9793f" stroke-width="7" stroke-linecap="round"/>`, "0 0 100 130");
     }
+    // ---- 低龄书《Mister Shivers》的可爱精灵 ----
+    case "monster":
+      return wrap(`<ellipse cx="50" cy="124" rx="30" ry="6" fill="#0004"/>
+        <path d="M20 116 Q12 52 50 48 Q88 52 80 116 Z" fill="#b98bff" stroke="#5a3a92" stroke-width="3"/>
+        <path d="M26 52 l-8 -18 l18 8 M74 52 l8 -18 l-18 8" fill="#b98bff" stroke="#5a3a92" stroke-width="3" stroke-linejoin="round"/>
+        <circle cx="39" cy="80" r="9" fill="#fff"/><circle cx="61" cy="80" r="9" fill="#fff"/>
+        <circle cx="40" cy="81" r="3.6" fill="#2b2140"/><circle cx="62" cy="81" r="3.6" fill="#2b2140"/>
+        <path d="M39 99 q11 10 22 0" stroke="#5a3a92" stroke-width="3" fill="none" stroke-linecap="round"/>
+        <circle cx="26" cy="96" r="5" fill="#ff9ec4" opacity=".7"/><circle cx="74" cy="96" r="5" fill="#ff9ec4" opacity=".7"/>`);
+    case "owl":
+      return wrap(`<ellipse cx="50" cy="124" rx="26" ry="6" fill="#0004"/>
+        <path d="M22 118 Q16 56 50 46 Q84 56 78 118 Z" fill="#d9a86c" stroke="#6b4526" stroke-width="3"/>
+        <path d="M24 52 l-6 -20 l20 10 M76 52 l6 -20 l-20 10" fill="#d9a86c" stroke="#6b4526" stroke-width="3" stroke-linejoin="round"/>
+        <circle cx="38" cy="76" r="12" fill="#fff"/><circle cx="62" cy="76" r="12" fill="#fff"/>
+        <circle cx="38" cy="77" r="4" fill="#2b2140"/><circle cx="62" cy="77" r="4" fill="#2b2140"/>
+        <path d="M50 88 l-7 8 l7 8 l7 -8 Z" fill="#ffb347" stroke="#6b4526" stroke-width="2"/>
+        <path d="M30 108 q20 10 40 0" stroke="#6b4526" stroke-width="2.5" fill="none"/>`);
+    case "shadow":
+      return wrap(`<ellipse cx="50" cy="124" rx="30" ry="5" fill="#0003"/>
+        <path d="M24 118 Q18 60 50 52 Q82 60 76 118 Z" fill="#2b2b58" opacity=".72"/>
+        <circle cx="40" cy="82" r="5" fill="#ffe9a8" opacity=".9"/><circle cx="60" cy="82" r="5" fill="#ffe9a8" opacity=".9"/>
+        <path d="M42 100 q8 6 16 0" stroke="#ffe9a8" stroke-width="2.5" fill="none" opacity=".8"/>`);
+    case "kid":
+      return wrap(`<ellipse cx="50" cy="126" rx="28" ry="6" fill="#0004"/>
+        <rect x="30" y="66" width="40" height="54" rx="14" fill="#7ec8ff" stroke="#1d2540" stroke-width="3"/>
+        <rect x="16" y="70" width="18" height="9" rx="4" fill="#ffd7b0" stroke="#1d2540" stroke-width="3"/>
+        <rect x="66" y="70" width="18" height="9" rx="4" fill="#ffd7b0" stroke="#1d2540" stroke-width="3"/>
+        <circle cx="50" cy="42" r="25" fill="#ffd7b0" stroke="#1d2540" stroke-width="3"/>
+        <path d="M26 34 q4 -26 26 -24 q22 2 24 24 q-12 -12 -24 -10 q-14 0 -26 10 Z" fill="#3a2b2b"/>
+        <circle cx="42" cy="44" r="3" fill="#1d2540"/><circle cx="58" cy="44" r="3" fill="#1d2540"/>
+        <path d="M43 54 q7 7 14 0" stroke="#1d2540" stroke-width="2.5" fill="none"/>
+        <circle cx="34" cy="52" r="5" fill="#ff9c9c" opacity=".7"/><circle cx="66" cy="52" r="5" fill="#ff9c9c" opacity=".7"/>`);
     default: return "";
   }
 }
@@ -314,6 +447,22 @@ function buildSet(kind) {
         [0, 1, 2, 3, 4, 5].map(i => pl(`<div class="portal-ring"></div>`, 0, -60, -420 + i * 76, 130 + i * 52, 130 + i * 52, `ring-layer r${i}`, 0)).join("") +
         pl(`<div class="portal-core"></div>`, 0, -60, 70, 96, 96, "core") +
         [0, 1, 2, 3].map(i => pl(`<div class="shard"></div>`, -260 + i * 175, -170 + i * 60, -140 + i * 50, 26, 46, `shard s${i}`, i * 34)).join("");
+    case "bedroom":
+      return floor("floor-tile") +
+        pl(`<div class="bench"></div>`, 0, 130, 20, 380, 90, "") +
+        pl(`<div class="platform"></div>`, 0, 60, -30, 340, 46, "") +
+        pl(`<div class="flask"></div>`, 250, 20, 90, 56, 76, "") +
+        pl(`<div class="ceil-light"></div>`, 0, -215, -160, 210, 30, "");
+    case "forest":
+      return floor("floor-grass") +
+        [-1, 1].flatMap(s => [0, 1, 2].map(i =>
+          pl(`<div class="trunk"></div>`, s * (200 + i * 90), 20 - i * 10, -240 + i * 150, 60, 280 - i * 40, "blend"))).join("") +
+        pl(`<div class="leaf-clump"></div>`, -240, -160, 170, 190, 120, "") +
+        pl(`<div class="leaf-clump alt"></div>`, 250, -150, 150, 180, 110, "");
+    case "mirror":
+      return floor("floor-tile") +
+        [0, 1, 2].map(i => pl(`<div class="eye-ring"></div>`, 0, -50, -300 + i * 80, 150 + i * 34, 150 + i * 34, "eye-layer", 0)).join("") +
+        pl(`<div class="rail"></div>`, 0, 170, 100, 560, 56, "");
     default: return "";
   }
 }
@@ -323,7 +472,7 @@ export class Stage {
   constructor(host, ch) {
     this.host = host;
     this.ch = ch;
-    this.cfg = SCENES[ch.id] || SCENES[1];
+    this.cfg = SCENES[ch.scene || ch.id] || SCENES[1];
     this.mode = sound.mode;
     this.timers = [];
     this.destroyed = false;
@@ -394,12 +543,14 @@ export class Stage {
 
   setActors(list) {
     const kinds = list || this.cfg.actors;
-    // 主角采用第一人称视角（玩家即 Jack），场景里只放敌人 / 伙伴，避免边缘出现半截角色
+    // 主角采用第一人称视角（玩家即主角），场景里只放敌人 / 伙伴，避免边缘出现半截角色
+    // 低龄书（scene >= 100）的可爱精灵上移到画面中部，避免被下方字幕与选择卡盖住
+    const high = Boolean(this.ch.scene && this.ch.scene >= 100);
     this.actors.innerHTML = kinds.map((k, i) => {
       const left = 22 + (i * 52) / Math.max(1, kinds.length - 1 || 1) + (i % 2 ? 5 : 0);
       const scale = .72 + (i % 3) * .12;
       const delay = (i * .18).toFixed(2);
-      return `<div class="sprite sp-${k}" data-kind="${k}" style="--left:${left}%;--sc:${scale};--dl:${delay}s">${sprite(k)}</div>`;
+      return `<div class="sprite ${high ? "high" : ""} sp-${k}" data-kind="${k}" style="--left:${left}%;--sc:${scale};--dl:${delay}s">${sprite(k)}</div>`;
     }).join("");
   }
 

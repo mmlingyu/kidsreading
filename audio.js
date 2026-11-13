@@ -31,12 +31,21 @@ export const SCORES = {
   6: { name: "停车场黄昏 · 温柔大调", root: 233.08, chords: [[0, 4, 7], [7, 11, 14], [5, 9, 12], [0, 4, 7]], scale: [0, 2, 4, 7, 9, 12], wave: "triangle", bpm: 78, pad: .030, lead: .018, pattern: [0, -1, 2, 4, -1, 4, 2, -1] },
   7: { name: "末日屋顶 · 低频压迫", root: 174.61, chords: [[0, 3, 6], [0, 3, 6], [1, 5, 8], [0, 3, 6]], scale: [0, 1, 3, 6, 7, 12], wave: "sawtooth", bpm: 60, pad: .040, lead: .011, pattern: [0, -1, -1, -1, 3, -1, -1, -1] },
   8: { name: "黎明决战 · 史诗渐强", root: 293.66, chords: [[0, 4, 7], [9, 12, 16], [5, 9, 12], [7, 11, 14]], scale: [0, 2, 4, 7, 9, 12, 14, 16], wave: "triangle", bpm: 104, pad: .032, lead: .025, pattern: [0, 2, 4, 7, 4, 5, 6, 7] },
+  // 低龄书：全部大调、慢速、柔和音色，刻意避开小调与低频压迫
+  101: { name: "床底夜灯 · 音乐盒", root: 261.63, chords: [[0, 4, 7], [5, 9, 12], [0, 4, 7], [7, 11, 14]], scale: [0, 2, 4, 7, 9, 12], wave: "sine", bpm: 72, pad: .024, lead: .014, pattern: [0, 2, 4, 2, 0, -1, 2, -1] },
+  102: { name: "树林黄昏 · 小木笛", root: 293.66, chords: [[0, 4, 7], [7, 11, 14], [5, 9, 12], [0, 4, 7]], scale: [0, 2, 4, 7, 9, 12], wave: "triangle", bpm: 84, pad: .026, lead: .017, pattern: [0, 2, 4, 4, 2, 0, 2, -1] },
+  103: { name: "走廊娃娃 · 玩具钢片琴", root: 233.08, chords: [[0, 4, 7], [0, 4, 7], [5, 9, 12], [7, 11, 14]], scale: [0, 2, 4, 7, 9, 12], wave: "sine", bpm: 76, pad: .023, lead: .015, pattern: [0, -1, 2, 4, -1, 2, 0, -1] },
+  104: { name: "清晨新房间 · 明亮钟琴", root: 293.66, chords: [[0, 4, 7], [9, 12, 16], [5, 9, 12], [0, 4, 7]], scale: [0, 2, 4, 7, 9, 12], wave: "triangle", bpm: 92, pad: .026, lead: .020, pattern: [0, 2, 4, 5, 4, 2, 0, -1] },
+  105: { name: "镜前柔光 · 小竖琴", root: 261.63, chords: [[0, 4, 7], [5, 9, 12], [7, 11, 14], [0, 4, 7]], scale: [0, 2, 4, 7, 9, 12], wave: "sine", bpm: 80, pad: .027, lead: .016, pattern: [0, 4, 2, 5, 4, 2, 0, -1] },
+  106: { name: "灯亮之前 · 温暖渐强", root: 246.94, chords: [[0, 4, 7], [5, 9, 12], [7, 11, 14], [0, 4, 7]], scale: [0, 2, 4, 7, 9, 12], wave: "triangle", bpm: 88, pad: .028, lead: .020, pattern: [0, 2, 4, 5, 4, 5, 7, -1] },
 };
 
 // 场景细节音层：比原来的单一噪声床更贴近画面，随机穿插具体声源。
 const BEDS = {
   1: ["bird", "wind"], 2: ["flicker", "beep"], 3: ["bubble", "spark"], 4: ["breeze", "crowd"],
   5: ["flicker", "step"], 6: ["crickets", "car"], 7: ["lowwind", "rumble"], 8: ["shimmer", "portal"],
+  101: ["wind", "shimmer"], 102: ["bird", "breeze"], 103: ["flicker", "step"],
+  104: ["bird", "breeze"], 105: ["shimmer", "spark"], 106: ["wind", "step"],
 };
 
 const PHASE_GAIN = { explore: .40, tension: .62, mini: .72, victory: .80 };
@@ -98,6 +107,13 @@ class SoundEngine {
     this.applyGains(true);
     if (this.scene) this.setScene(this.scene.id, this.scene.cfg, this.scene.scoreId);
     return true;
+  }
+
+  // Narration uses this context and connects past the music bus, so duck/mute
+  // still shape the score without silencing or replacing speech.
+  playbackContext() {
+    if (!this.unlock()) return null;
+    return this.ctx;
   }
 
   applyGains(fast = false) {
