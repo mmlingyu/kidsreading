@@ -92,11 +92,13 @@ def test_worker_user_gateway_and_sdk_mock_model(sdk_static_cache):
     sudo('mkdir','-p',str(base))
     sudo('chown','studio-worker-html2',str(base))
     probe=ROOT/'tests'/'studio_sdk_as_user.py'
-    run=subprocess.run(['sudo','-n','-u','studio-worker-html2','env',f'PYTHONPATH={ROOT}',PY,str(probe),str(base),sys.prefix,str(cache)],capture_output=True,text=True,timeout=120)
+    run=subprocess.run(['sudo','-n','-u','studio-worker-html2','env',f'PYTHONPATH={ROOT}',PY,str(probe),str(base),sys.prefix,str(cache),'html-builder'],capture_output=True,text=True,timeout=120)
     detail=(base/'sdk-status.txt').read_text() if (base/'sdk-status.txt').exists() else run.stderr[-2000:]
     assert run.returncode==0, detail
     shown=sudo('cat',str(base/'work'/'agent-result.json'))
     assert 'finish_reason' in shown.stdout
+    binding=json.loads(sudo('cat',str(base/'work'/'binding.json')).stdout)
+    assert binding['name']=='html-builder' and binding['book_contract'] is False
     assert sudo('cat',str(base/'sock-mode.txt')).stdout.strip()=='0o600'
     denied=sudo('-u','studio-api-html2','test','-x',str(base/'run'), check=False)
     assert denied.returncode!=0

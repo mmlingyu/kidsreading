@@ -4,10 +4,10 @@ from reader_service.sandbox import ROOT
 
 def test_canonical_package_version_matches_release_folder():
     assert VERSION==ROOT.name
-    assert VERSION=='reader-phase1-20261117-r5-html3'
+    assert VERSION=='reader-phase1-20261117-r5-html4'
     page=(ROOT/'frontend/app/index.html').read_text()
     assert 'app.js?v=reader-phase1-r5' in page
-    assert 'html3' not in page
+    assert 'html4' not in page
 
 def test_health_identifies_current_release():
     import hashlib,tempfile

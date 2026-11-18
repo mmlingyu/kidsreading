@@ -229,6 +229,21 @@ def test_prepare_gate_enable_mock_jobs_and_rollback(tmp_path, sdk_static_cache):
         assert is_mount=='1' and noexec=='1' and int(size)<=128*1024*1024
         unit=(base/'units'/'studio-worker.service').read_text()
         assert 'User=studio-worker-html3' in unit and 'LimitFSIZE=32M' in unit and 'MemoryMax=384M' in unit
+        assert 'Requires=studio-jobs.mount' not in unit and 'Requires=' in unit
+        escaped=subprocess.check_output(['systemd-escape','-p','--suffix=mount', str(jobs)], text=True).strip()
+        assert (base/'units'/escaped).is_file()
+        write_root(base/'units'/'studio-jobs.mount', '[Mount]\nWhat=/tmp/old.img\nWhere=/var/lib/studio/jobs\nType=ext4\nOptions=loop,nodev,nosuid,noexec\n')
+        secret_env=root_text(base/'etc'/'studio'/'worker.env').replace(
+            'DEEPSEEK_API_KEY=REPLACE_SECURELY_AT_DEPLOYMENT','DEEPSEEK_API_KEY='+SENTINEL)
+        write_root(base/'etc'/'studio'/'worker.env', secret_env)
+        sudo('chmod','0600',str(base/'etc'/'studio'/'worker.env'))
+        again=sudo(str(ROOT/'deploy'/'prepare-studio.sh'),'--prepare-inactive', env=env)
+        assert again.returncode==0, again.stderr
+        kept=root_text(base/'etc'/'studio'/'worker.env')
+        assert 'DEEPSEEK_API_KEY='+SENTINEL in kept and 'STUDIO_ENABLE_GENERATION=0' in kept
+        assert not (base/'units'/'studio-jobs.mount').exists()
+        verified=subprocess.run(['systemd-analyze','verify', str(base/'units'/'studio-api.service'), str(base/'units'/'studio-worker.service'), str(base/'units'/escaped)], capture_output=True, text=True)
+        assert verified.returncode==0, verified.stderr
         assert 'DEEPSEEK_API_KEY' not in root_text(base/'etc'/'studio'/'api.env')
         failed=sudo(PY,str(ROOT/'tools'/'studio_gates.py'),str(base/'var'/'studio'/'not-mounted.json'), env={**env,'STUDIO_JOBS':str(base/'etc')}, check=False)
         assert failed.returncode!=0
@@ -267,7 +282,7 @@ def test_prepare_gate_enable_mock_jobs_and_rollback(tmp_path, sdk_static_cache):
                 break
             time.sleep(0.2)
         assert health is not None, 'studio API did not answer on 127.0.0.1:6011'
-        assert health['generation'] is True and health['release'].endswith('html3') and health['reader_replaced'] is False
+        assert health['generation'] is True and health['release'].endswith('html4') and health['reader_replaced'] is False
         token='A'*48
         write_root(base/'etc'/'studio'/'worker.env', root_text(base/'etc'/'studio'/'worker.env')+'STUDIO_MOCK_SECONDS=25\n')
         sudo('chmod','0600',str(base/'etc'/'studio'/'worker.env'))

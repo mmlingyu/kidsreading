@@ -22,6 +22,7 @@ getent group "$GROUP" >/dev/null || groupadd --system "$GROUP"
 id "$API" >/dev/null 2>&1 || useradd --system --no-create-home --shell /usr/sbin/nologin --gid "$GROUP" "$API"
 id "$WORKER" >/dev/null 2>&1 || useradd --system --no-create-home --shell /usr/sbin/nologin --gid "$GROUP" "$WORKER"
 command -v setfacl >/dev/null || { echo 'acl package/setfacl required'; exit 2; }
+command -v systemd-escape >/dev/null || { echo 'systemd-escape required'; exit 2; }
 command -v mount >/dev/null || { echo 'mount required'; exit 2; }
 command -v mkfs.ext4 >/dev/null || { echo 'mkfs.ext4 required'; exit 2; }
 [ -d "$CURRENT" ] || { echo "unpack the release to $CURRENT before prepare"; exit 1; }
@@ -88,8 +89,8 @@ shared={'STUDIO_DATA':var,'STUDIO_AUTH_FILE':owners,'STUDIO_ACCEPTED_FILE':accep
 rewrite(api, shared)
 rewrite(worker, {**shared,'READER_RUNTIME_CACHE':cache})
 PY
-python3 - "$SRC" "$UNIT_DIR" "$API" "$WORKER" "$GROUP" "$CURRENT" "$RUNTIME" "$ETC" "$VAR" "$JOBS" "$CACHE" "$IMAGE" <<'PY'
-import sys
+MOUNT_UNIT=$(python3 - "$SRC" "$UNIT_DIR" "$API" "$WORKER" "$GROUP" "$CURRENT" "$RUNTIME" "$ETC" "$VAR" "$JOBS" "$CACHE" "$IMAGE" <<'PY'
+import subprocess, sys
 from pathlib import Path
 src, unit_dir, api, worker, group, current, runtime, etc, var, jobs, cache, image=sys.argv[1:]
 unit=Path(unit_dir)
@@ -98,14 +99,20 @@ def put(name, text):
     path=unit/name
     path.write_text(text)
     path.chmod(0o644)
-api_text=(Path(src)/'deploy'/'studio-api.service').read_text()
+    return path
+mount_name=subprocess.check_output(['systemd-escape','-p','--suffix=mount', jobs], text=True).strip()
+def retarget(text):
+    text=text.replace('var-lib-studio-jobs.mount', '\0')
+    text=text.replace('studio-jobs.mount', mount_name)
+    return text.replace('\0', mount_name)
+api_text=retarget((Path(src)/'deploy'/'studio-api.service').read_text())
 api_text=api_text.replace('User=studio-api','User='+api).replace('Group=studio-data','Group='+group)
 api_text=api_text.replace('WorkingDirectory=/opt/studio/current','WorkingDirectory='+current)
 api_text=api_text.replace('EnvironmentFile=/etc/studio/api.env','EnvironmentFile='+etc+'/api.env')
 api_text=api_text.replace('ExecStart=/opt/reader-runtime/bin/python','ExecStart='+runtime+'/bin/python')
 api_text=api_text.replace('ReadWritePaths=/var/lib/studio /var/lib/studio/jobs','ReadWritePaths='+var+' '+jobs)
 put('studio-api.service', api_text)
-worker_text=(Path(src)/'deploy'/'studio-worker.service').read_text()
+worker_text=retarget((Path(src)/'deploy'/'studio-worker.service').read_text())
 worker_text=worker_text.replace('User=studio-worker','User='+worker).replace('Group=studio-data','Group='+group)
 worker_text=worker_text.replace('WorkingDirectory=/opt/studio/current','WorkingDirectory='+current)
 worker_text=worker_text.replace('EnvironmentFile=/etc/studio/worker.env','EnvironmentFile='+etc+'/worker.env')
@@ -114,12 +121,24 @@ worker_text=worker_text.replace('Environment=READER_RUNTIME_CACHE=/opt/reader-ru
 worker_text=worker_text.replace('ReadWritePaths=/var/lib/studio /var/lib/studio/jobs','ReadWritePaths='+var+' '+jobs)
 worker_text=worker_text.replace('ReadOnlyPaths=/opt/reader-runtime-cache-0.2.2rc2','ReadOnlyPaths='+cache)
 put('studio-worker.service', worker_text)
-mount=(Path(src)/'deploy'/'studio-jobs.mount').read_text()
+mount=retarget((Path(src)/'deploy'/'var-lib-studio-jobs.mount').read_text())
 mount=mount.replace('What=/var/lib/studio-storage/jobs.ext4','What='+image)
 mount=mount.replace('Where=/var/lib/studio/jobs','Where='+jobs)
-put('studio-jobs.mount', mount)
+put(mount_name, mount)
+stale=unit/'studio-jobs.mount'
+if stale.exists() and stale.name!=mount_name:
+    stale.unlink()
+print(mount_name)
 PY
-if [ "${STUDIO_SKIP_SYSTEMCTL:-}" != 1 ] && command -v systemctl >/dev/null 2>&1; then
-  systemctl enable studio-jobs.mount || true
+)
+if [ -f "$UNIT_DIR/studio-jobs.mount" ]; then
+  if [ "${STUDIO_SKIP_SYSTEMCTL:-}" != 1 ]; then
+    systemctl disable studio-jobs.mount || true
+  fi
+  rm -f "$UNIT_DIR/studio-jobs.mount"
+fi
+if [ "${STUDIO_SKIP_SYSTEMCTL:-}" != 1 ]; then
+  systemctl daemon-reload
+  systemctl enable "$MOUNT_UNIT"
 fi
 printf '%s\n' "Studio units installed inactive. Jobs volume $JOBS is nosuid,noexec and at most 128MiB. Reader current, TTS and Harness were not changed. Generation stays 0 until this tree's trusted hash passes tools/studio_gates.py."

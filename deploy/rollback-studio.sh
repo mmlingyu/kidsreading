@@ -6,9 +6,18 @@ set -eu
 [ "$(id -u)" = 0 ] || { echo 'Run by an authorized coordinator as root'; exit 2; }
 SRC=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 ETC=${STUDIO_ETC:-/etc/studio}
+UNIT_DIR=${STUDIO_UNIT_DIR:-/etc/systemd/system}
 if [ "${STUDIO_SKIP_SYSTEMCTL:-}" != 1 ]; then
   systemctl stop studio-api.service studio-worker.service || true
   systemctl disable studio-api.service studio-worker.service || true
+  systemctl disable studio-jobs.mount || true
+fi
+# The html3 unit name is invalid. Remove that file only. Do not unmount jobs.
+if [ -f "$UNIT_DIR/studio-jobs.mount" ]; then
+  rm -f "$UNIT_DIR/studio-jobs.mount"
+  if [ "${STUDIO_SKIP_SYSTEMCTL:-}" != 1 ]; then
+    systemctl daemon-reload || true
+  fi
 fi
 if [ -d "$ETC/acl-before" ]; then
   python3 "$SRC/tools/studio_acl.py" restore --snapshot-dir "$ETC/acl-before"

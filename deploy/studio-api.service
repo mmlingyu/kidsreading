@@ -1,7 +1,7 @@
 [Unit]
 Description=HTML studio control plane beside reader, not a replacement
-After=network.target studio-jobs.mount
-Requires=studio-jobs.mount
+After=network.target var-lib-studio-jobs.mount
+Requires=var-lib-studio-jobs.mount
 [Service]
 Type=simple
 User=studio-api

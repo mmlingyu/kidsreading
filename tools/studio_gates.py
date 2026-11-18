@@ -79,8 +79,10 @@ def probe_quota():
         result=review(work,'html-builder')
         if result['passed']:
             fail('filesystem_hard_quota','symlink preview was accepted')
-        mount=(ROOT/'deploy'/'studio-jobs.mount').read_text()
-        worker=(ROOT/'deploy'/'studio-worker.service').read_text()
+        from tools.studio_units import load, unit_dir
+        config=load(unit_dir())
+        mount=config['mount_path'].read_text()
+        worker=config['worker'].read_text()
         for item in ('loop','nodev','nosuid','noexec','LimitFSIZE=32M'):
             if item not in mount and item not in worker:
                 fail('filesystem_hard_quota', item)
@@ -167,8 +169,11 @@ def probe_sdk():
     if not shutil.which('bwrap'):
         fail('linux_py312_sdk_smoke','bwrap missing')
     cache=os.environ.get('READER_RUNTIME_CACHE')
+    runtime=os.environ.get('STUDIO_RUNTIME')
     if not cache or not (Path(cache)/'home').is_dir():
-        fail('linux_py312_sdk_smoke','runtime cache was not prepared')
+        fail('linux_py312_sdk_smoke','runtime cache was not prepared from the worker unit')
+    if not runtime or not (Path(runtime)/'bin'/'python').is_file():
+        fail('linux_py312_sdk_smoke','runtime python was not taken from the worker unit')
     cache_stat=(Path(cache)/'home').stat()
     if cache_stat.st_uid!=0 or cache_stat.st_mode & 0o022:
         fail('linux_py312_sdk_smoke','runtime cache is not root-owned and group/world read-only')
@@ -179,21 +184,27 @@ def probe_sdk():
     if first!='GATE-PROBE-NOT-A-REAL-KEY' or second:
         fail('linux_py312_sdk_smoke','a second read must not invent or retain the secret in the environment')
     probe=ROOT/'tests'/'studio_sdk_as_user.py'
-    base=Path(tempfile.mkdtemp(prefix='studio-sdk-gate-'))
-    try:
-        user=os.environ.get('STUDIO_WORKER_USER','studio-worker')
-        os.chown(base, __import__('pwd').getpwnam(user).pw_uid, __import__('pwd').getpwnam(user).pw_gid)
-        os.chmod(base, 0o755)
-        result=subprocess.run(['runuser','-u',user,'--','env',
-            'PYTHONPATH='+str(ROOT),'READER_RUNTIME_CACHE='+cache,'PYTHONDONTWRITEBYTECODE=1','PATH=/usr/bin:/bin',
-            sys.executable,str(probe),str(base),sys.prefix,cache], capture_output=True, timeout=120)
-        status=(base/'sdk-status.txt').read_text() if (base/'sdk-status.txt').exists() else result.stderr.decode()[-1000:]
-        if result.returncode!=0 or 'GATE-PROBE' in status:
-            fail('linux_py312_sdk_smoke', status[-400:] or 'sdk process failed')
-        if 'finish_reason' not in (base/'work'/'agent-result.json').read_text():
-            fail('linux_py312_sdk_smoke','sdk did not finish through the gateway')
-    finally:
-        shutil.rmtree(base, ignore_errors=True)
+    user=os.environ.get('STUDIO_WORKER_USER','studio-worker')
+    for skill_id in ('html-builder','zdog','knowledge-travel'):
+        base=Path(tempfile.mkdtemp(prefix='studio-sdk-gate-'))
+        try:
+            os.chown(base, __import__('pwd').getpwnam(user).pw_uid, __import__('pwd').getpwnam(user).pw_gid)
+            os.chmod(base, 0o755)
+            result=subprocess.run(['runuser','-u',user,'--','env',
+                'PYTHONPATH='+str(ROOT),'READER_RUNTIME_CACHE='+cache,'STUDIO_RUNTIME='+runtime,'PYTHONDONTWRITEBYTECODE=1','PATH=/usr/bin:/bin',
+                sys.executable,str(probe),str(base),runtime,cache,skill_id], capture_output=True, timeout=120)
+            status=(base/'sdk-status.txt').read_text() if (base/'sdk-status.txt').exists() else result.stderr.decode()[-1000:]
+            if result.returncode!=0 or 'GATE-PROBE' in status:
+                fail('linux_py312_sdk_smoke', skill_id+' '+(status[-400:] or 'sdk process failed'))
+            if 'finish_reason' not in (base/'work'/'agent-result.json').read_text():
+                fail('linux_py312_sdk_smoke', skill_id+' sdk did not finish through the gateway')
+            binding=__import__('json').loads((base/'work'/'binding.json').read_text())
+            if binding.get('name')!=skill_id or binding.get('book_contract'):
+                fail('linux_py312_sdk_smoke', skill_id+' was not the mounted skill')
+            if (base/'work'/'outputs'/'book.json').exists():
+                fail('linux_py312_sdk_smoke', skill_id+' produced a reader book')
+        finally:
+            shutil.rmtree(base, ignore_errors=True)
 
 def probe_auth():
     import hashlib
@@ -288,6 +299,10 @@ PROBES=(
 )
 
 def run(evidence_path):
+    from tools.studio_units import apply_process_env, load, unit_dir, verify
+    config=load(unit_dir())
+    apply_process_env(config)
+    verify(config)
     evidence=Path(evidence_path)
     if evidence.exists():
         evidence.unlink()

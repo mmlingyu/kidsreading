@@ -59,8 +59,10 @@ class StudioWorker:
             raise RuntimeError('studio_agent_not_configured')
         (work/'input.json').write_text(json.dumps({'id':work.name}), encoding='utf-8')
         (work/'control.json').write_text(json.dumps({'prompt':prompt,'resume':False}, ensure_ascii=False), encoding='utf-8')
+        from .runtime_cache import cache_root
         from .sandbox import command
-        return spawn(command(work, sock, skill='html-skills/'+self.current_skill))
+        runtime=os.environ.get('STUDIO_RUNTIME','/opt/reader-runtime')
+        return spawn(command(work, sock, runtime=runtime, cache=cache_root(), skill='html-skills/'+self.current_skill))
     def _progress(self, work):
         outputs=work/'outputs'
         if not outputs.is_dir() or outputs.is_symlink():

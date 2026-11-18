@@ -14,7 +14,9 @@ case "$cmd" in
       echo 'STUDIO_SKIP_SYSTEMCTL is set; units were not started'
       exit 0
     fi
-    systemctl enable --now studio-jobs.mount
+    UDIR=${STUDIO_UNIT_DIR:-/etc/systemd/system}
+    MOUNT=$(python3 "$SRC/tools/studio_units.py" --unit-dir "$UDIR" mount-name)
+    systemctl enable --now "$MOUNT"
     systemctl enable --now studio-api.service studio-worker.service
     ;;
   health)
@@ -23,13 +25,21 @@ case "$cmd" in
     ;;
   gate)
     [ "$(id -u)" = 0 ] || { echo 'root required'; exit 2; }
-    PY=${STUDIO_PYTHON:-/opt/reader-runtime/bin/python}
+    UDIR=${STUDIO_UNIT_DIR:-/etc/systemd/system}
+    [ -f "$UDIR/studio-worker.service" ] || UDIR=$SRC/deploy
+    python3 "$SRC/tools/studio_units.py" --unit-dir "$UDIR" verify
+    eval "$(python3 "$SRC/tools/studio_units.py" --unit-dir "$UDIR" env)"
+    PY=${STUDIO_PYTHON:-$STUDIO_RUNTIME/bin/python}
     [ -x "$PY" ] || { echo "runtime python missing: $PY"; exit 2; }
     "$PY" "$SRC/tools/studio_gates.py" "$VAR/gate-evidence.json"
     ;;
   enable)
     [ "$(id -u)" = 0 ] || { echo 'root required'; exit 2; }
-    PY=${STUDIO_PYTHON:-/opt/reader-runtime/bin/python}
+    UDIR=${STUDIO_UNIT_DIR:-/etc/systemd/system}
+    [ -f "$UDIR/studio-worker.service" ] || UDIR=$SRC/deploy
+    python3 "$SRC/tools/studio_units.py" --unit-dir "$UDIR" verify
+    eval "$(python3 "$SRC/tools/studio_units.py" --unit-dir "$UDIR" env)"
+    PY=${STUDIO_PYTHON:-$STUDIO_RUNTIME/bin/python}
     [ -x "$PY" ] || { echo "runtime python missing: $PY"; exit 2; }
     "$PY" "$SRC/tools/studio_gates.py" "$VAR/gate-evidence.json"
     STUDIO_GROUP=${STUDIO_GROUP:-studio-data} python3 - "$SRC" "$ETC" "$VAR" "${STUDIO_GROUP:-studio-data}" <<'PY'

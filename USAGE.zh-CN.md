@@ -1,6 +1,6 @@
 # HTML 技能使用说明
 
-版本目录：`reader-phase1-20261117-r5-html3`。html1 和 html2 不能部署。这不是已验收标签，也不要替换正在服务的阅读器。服务器上的真实模型验收还没有做。下面的域名写成 `https://SERVICE`。示例里没有 Token。
+版本目录：`reader-phase1-20261117-r5-html4`。html1、html2 和 html3 不能部署。这不是已验收标签，也不要替换正在服务的阅读器。服务器上的真实模型验收还没有做。下面的域名写成 `https://SERVICE`。示例里没有 Token。
 
 2026-11-18 19:29 已允许把这 7 个技能源码公开进仓库。样例 HTML 没有打进发布包。
 
@@ -69,10 +69,10 @@ Invoke-RestMethod -Method Post -Headers $headers -ContentType "application/json"
 
 步骤、预期输出和失败恢复在 `deploy/RUNBOOK-html.zh-CN.md`。摘要：
 
-- `prepare` 不把 studio 用户加入 `reader-data`。`/etc/reader` 只加目录搜索 `x`，`owners.json` 只加 `r`。回滚用 prepare 当时的 ACL 快照，不用 `setfacl -b`。
-- jobs 在独立 128MiB `nosuid,nodev,noexec` 盘，不使用阅读器的 512MiB 盘。
+- `prepare` 不把 studio 用户加入 `reader-data`。`/etc/reader` 只加目录搜索 `x`，`owners.json` 只加 `r`。回滚用 prepare 当时的 ACL 快照，不用 `setfacl -b`。已有的 `worker.env` 密钥和生成开关保持原样。
+- jobs 在独立 128MiB `nosuid,nodev,noexec` 盘。挂载单元名是 `var-lib-studio-jobs.mount`，不是 `studio-jobs.mount`。`prepare` 会清掉旧的无效 unit，不重做已经挂上的盘。
 - 现网 HTTPS 是 `local-tts-edge.service` 和 `/etc/local-tts-edge/Caddyfile`。`deploy/edge-studio.sh install` 备份后只插入 studio 前缀，校验整份文件，再 `reload` 这个 unit。`validate-studio-caddy.sh` 只检查片段。
-- `gate` 跑六项探针。`enable` 只有探针通过且哈希等于本树 `TRUSTED-SHA256.json` 时才写签署并打开生成。不要沿用 r5、html1 或 html2 的签署。
+- `gate` 先 `systemd-analyze verify`，再按 unit 里的 runtime 和只读 cache 跑六项探针，并对三个可调用技能各做一次真实 bwrap 绑定。`enable` 只有探针通过且哈希等于本树 `TRUSTED-SHA256.json` 时才写签署并打开生成。不要沿用 r5、html1、html2 或 html3 的签署。
 - 密钥只在 worker 的 env 文件里。进程启动读一次，之后从环境删除；同一进程的后续任务复用内存里的那一份。不进 bwrap 的环境或参数。
 
 Studio 的 api 和 worker 共用 `studio-data`，目录 `2770`，`UMask=0007`。数据库和发布文件是 `0660`。取消不会把已经取消的任务写成 ready。总时限默认 600 秒、硬上限 900 秒；产物没有更新时默认 180 秒、硬上限 300 秒。
