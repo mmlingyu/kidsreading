@@ -1,6 +1,6 @@
 # kidsreading · HTML 技能分支
 
-这个分支从已验收 r5 提交 `3d5578003a4a3fefc48f8b711d9c690bbdec4769` 分出。不要改 `R5`、`main` 或稳定标签。使用说明在 `USAGE.zh-CN.md`。发布目录名是 `reader-phase1-20261117-r5-html5`，不要拿去替换 `/opt/reader/current`。服务器验收还没有做，部署步骤在 `deploy/RUNBOOK-html.zh-CN.md`。
+这个分支从已验收 r5 提交 `3d5578003a4a3fefc48f8b711d9c690bbdec4769` 分出。不要改 `R5`、`main` 或稳定标签。使用说明在 `USAGE.zh-CN.md`。发布目录名是 `reader-phase1-20261117-r5-html6`，不要拿去替换 `/opt/reader/current`。服务器验收还没有做，部署步骤在 `deploy/RUNBOOK-html.zh-CN.md`。
 
 # kidsreading · R5（未验收）
 

@@ -282,7 +282,7 @@ def test_prepare_gate_enable_mock_jobs_and_rollback(tmp_path, sdk_static_cache):
                 break
             time.sleep(0.2)
         assert health is not None, 'studio API did not answer on 127.0.0.1:6011'
-        assert health['generation'] is True and health['release'].endswith('html5') and health['reader_replaced'] is False
+        assert health['generation'] is True and health['release'].endswith('html6') and health['reader_replaced'] is False
         token='A'*48
         write_root(base/'etc'/'studio'/'worker.env', root_text(base/'etc'/'studio'/'worker.env')+'STUDIO_MOCK_SECONDS=25\n')
         sudo('chmod','0600',str(base/'etc'/'studio'/'worker.env'))

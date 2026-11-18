@@ -128,6 +128,75 @@ def probe_quota():
         shutil.rmtree(work, ignore_errors=True)
 
 CGROUP_EVIDENCE={}
+RUNTIME_REPORT={}
+
+def _root_readonly(path):
+    st=Path(path).stat()
+    return st.st_uid==0 and (st.st_mode & 0o022)==0
+
+def describe_runtime(entry):
+    """Accept the unit's python only: the known root wrapper, or that same interpreter directly."""
+    entry=Path(entry)
+    runtime=Path(os.environ.get('STUDIO_RUNTIME','')).resolve()
+    if not entry.is_absolute() or not runtime.is_absolute():
+        fail('linux_py312_sdk_smoke','runtime entry is not absolute')
+    if entry!=Path(os.environ.get('STUDIO_PYTHON_BIN','')):
+        fail('linux_py312_sdk_smoke','refusing an interpreter that is not the worker ExecStart')
+    if entry!=runtime/'bin'/'python' and str(entry)!=str(runtime/'bin'/'python'):
+        # Compare the path text too: resolve() must not turn the wrapper into the venv python.
+        if Path(os.environ['STUDIO_RUNTIME'])/'bin'/'python'!=entry:
+            fail('linux_py312_sdk_smoke','ExecStart is not <runtime>/bin/python')
+    st=entry.lstat()
+    wrapper_text=('#!/bin/sh\nexec '+str(Path(os.environ['STUDIO_RUNTIME']))+'/venv/bin/python "$@"\n').encode()
+    wrapper=False
+    if stat.S_ISLNK(st.st_mode):
+        if entry.resolve()!=Path(sys.executable).resolve() or not _root_readonly(entry.resolve()):
+            fail('linux_py312_sdk_smoke','runtime symlink does not point at the trusted interpreter')
+    elif stat.S_ISREG(st.st_mode) and st.st_size==len(wrapper_text) and entry.read_bytes()==wrapper_text:
+        if not (st.st_uid==0 and (st.st_mode & 0o022)==0):
+            fail('linux_py312_sdk_smoke','runtime wrapper is not root-owned and read-only')
+        target=Path(os.environ['STUDIO_RUNTIME'])/'venv'/'bin'/'python'
+        tst=target.lstat()
+        if stat.S_ISLNK(tst.st_mode):
+            if tst.st_uid!=0:
+                fail('linux_py312_sdk_smoke','venv python symlink is not root-owned')
+        elif not (tst.st_uid==0 and (tst.st_mode & 0o022)==0):
+            fail('linux_py312_sdk_smoke','venv python is not root-owned and read-only')
+        if not _root_readonly(target.resolve()):
+            fail('linux_py312_sdk_smoke','resolved venv interpreter is writable or not root-owned')
+        if target.resolve()!=Path(sys.executable).resolve():
+            fail('linux_py312_sdk_smoke','wrapper does not exec this interpreter')
+        wrapper=True
+    elif stat.S_ISREG(st.st_mode) and st.st_size<=256 and entry.read_bytes().startswith(b'#!/'):
+        fail('linux_py312_sdk_smoke','runtime entry is an untrusted wrapper')
+    elif entry.resolve()!=Path(sys.executable).resolve() or not _root_readonly(entry.resolve()):
+        fail('linux_py312_sdk_smoke','runtime entry is not the trusted interpreter')
+    probed=subprocess.run([str(entry),'-c',
+        'import importlib.metadata,json,sys\n'
+        'print(json.dumps({"version":sys.version.split()[0],"prefix":sys.prefix,"executable":sys.executable,'
+        '"sdk":importlib.metadata.version("deepseek-harness-sdk"),"fastapi":importlib.metadata.version("fastapi")}))\n'],
+        capture_output=True, text=True, timeout=30, env={'PATH':'/usr/bin:/bin','PYTHONDONTWRITEBYTECODE':'1'})
+    if probed.returncode!=0:
+        detail='\n'.join(line for line in (probed.stderr or '').splitlines() if 'KEY' not in line and 'DEEPSEEK' not in line)[-400:]
+        fail('linux_py312_sdk_smoke','ExecStart did not start the runtime: '+detail)
+    report=json.loads(probed.stdout)
+    if not str(report.get('version','')).startswith('3.12.'):
+        fail('linux_py312_sdk_smoke','runtime Python is '+str(report.get('version')))
+    if report.get('sdk')!='0.2.2rc2':
+        fail('linux_py312_sdk_smoke','SDK is '+str(report.get('sdk'))+', expected 0.2.2rc2')
+    if not report.get('fastapi'):
+        fail('linux_py312_sdk_smoke','fastapi is missing from the runtime')
+    if Path(report['executable']).resolve()!=Path(sys.executable).resolve():
+        fail('linux_py312_sdk_smoke','gate process was not started through the unit entry')
+    prefix=Path(report['prefix']).resolve()
+    allowed={runtime, (runtime/'venv').resolve()}
+    if prefix not in allowed:
+        fail('linux_py312_sdk_smoke','interpreter prefix '+str(prefix)+' is outside the unit runtime')
+    if wrapper and prefix!=(runtime/'venv').resolve():
+        fail('linux_py312_sdk_smoke','wrapper prefix is not the runtime venv')
+    report['wrapper']=wrapper
+    report['entry']=str(entry)
+    return report
 
 def memory_events(scope):
     data={}
@@ -241,10 +310,10 @@ def probe_sdk():
     cache_stat=(Path(cache)/'home').stat()
     if cache_stat.st_uid!=0 or cache_stat.st_mode & 0o022:
         fail('linux_py312_sdk_smoke','runtime cache is not root-owned and group/world read-only')
-    expected=os.environ.get('STUDIO_PYTHON_BIN','')
-    if not expected or Path(sys.executable).resolve()!=Path(expected).resolve():
-        fail('linux_py312_sdk_smoke','gate python '+sys.executable+' is not the worker unit ExecStart '+expected)
-    preflight=subprocess.run([sys.executable,'-c','import fastapi,starlette,deepseek_harness,reader_service.studio_api'],
+    report=describe_runtime(os.environ.get('STUDIO_PYTHON_BIN',''))
+    RUNTIME_REPORT.clear()
+    RUNTIME_REPORT.update({key:report[key] for key in ('version','prefix','executable','sdk','fastapi','wrapper','entry')})
+    preflight=subprocess.run([report['entry'],'-c','import fastapi,starlette,deepseek_harness,reader_service.studio_api'],
                              env={'PATH':'/usr/bin:/bin','PYTHONPATH':str(ROOT),'PYTHONDONTWRITEBYTECODE':'1'}, capture_output=True, text=True)
     if preflight.returncode!=0:
         fail('linux_py312_sdk_smoke', 'runtime is missing a production import: '+(preflight.stderr or '')[-300:])
@@ -271,7 +340,7 @@ def probe_sdk():
             os.chmod(base, 0o755)
             result=subprocess.run(['runuser','-u',user,'--','env',
                 'PYTHONPATH='+str(ROOT),'READER_RUNTIME_CACHE='+cache,'STUDIO_RUNTIME='+runtime,'PYTHONDONTWRITEBYTECODE=1','PATH=/usr/bin:/bin',
-                sys.executable,str(probe),str(base),runtime,cache,skill_id], capture_output=True, timeout=120)
+                report['entry'],str(probe),str(base),runtime,cache,skill_id], capture_output=True, timeout=120)
             status=(base/'sdk-status.txt').read_text() if (base/'sdk-status.txt').exists() else result.stderr.decode()[-1000:]
             if result.returncode!=0 or 'GATE-PROBE' in status:
                 fail('linux_py312_sdk_smoke', skill_id+' '+(status[-400:] or 'sdk process failed'))
@@ -392,16 +461,41 @@ PROBES=(
     ('https_auth_checked', probe_auth),
 )
 
+def _public_detail(text):
+    lines=[line for line in str(text).splitlines() if 'DEEPSEEK' not in line and 'API_KEY' not in line and 'KEY=' not in line]
+    return '\n'.join(lines)[:800]
+
+def write_diagnostic(evidence, results, detail):
+    """Failure notes only. signed is false, so this file cannot be copied into accepted.json."""
+    path=Path(evidence).with_name('gate-diagnostic.json')
+    payload={
+        'signed': False,
+        'accepted': False,
+        'trusted_manifest_sha256': trusted_hash(),
+        'failed': _public_detail(detail).split(':',1)[0] or 'gates',
+        'detail': _public_detail(detail),
+        'probes': results,
+    }
+    if CGROUP_EVIDENCE:
+        payload['cgroup']={key:CGROUP_EVIDENCE[key] for key in ('memory_max','memory_swap_max','returncode','oom','oom_kill')}
+    if RUNTIME_REPORT:
+        payload['runtime']=dict(RUNTIME_REPORT)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary=path.with_suffix('.tmp')
+    temporary.write_text(json.dumps(payload, indent=2)+'\n')
+    os.chmod(temporary, 0o640)
+    os.replace(temporary, path)
+
 def run(evidence_path):
     from tools.studio_units import apply_process_env, load, unit_dir, verify
-    config=load(unit_dir())
-    apply_process_env(config)
-    verify(config)
     evidence=Path(evidence_path)
-    if evidence.exists():
-        evidence.unlink()
     results={}
     try:
+        config=load(unit_dir())
+        apply_process_env(config)
+        verify(config)
+        if evidence.exists():
+            evidence.unlink()
         for name, func in PROBES:
             func()
             results[name]=True
@@ -418,21 +512,28 @@ def run(evidence_path):
         payload.update(results)
         if CGROUP_EVIDENCE:
             payload['cgroup']={key:CGROUP_EVIDENCE[key] for key in ('memory_max','memory_swap_max','returncode','oom','oom_kill')}
+        if RUNTIME_REPORT:
+            payload['runtime']=dict(RUNTIME_REPORT)
         evidence.parent.mkdir(parents=True, exist_ok=True)
         temporary=evidence.with_suffix('.tmp')
         temporary.write_text(json.dumps(payload, indent=2)+'\n')
         os.chmod(temporary, 0o640)
         os.replace(temporary, evidence)
+        diagnostic=evidence.with_name('gate-diagnostic.json')
+        if diagnostic.exists():
+            diagnostic.unlink()
         print(json.dumps({'ok':True,'trusted_manifest_sha256':payload['trusted_manifest_sha256']}))
-    except SystemExit:
+    except SystemExit as exc:
         if evidence.exists():
             evidence.unlink()
+        write_diagnostic(evidence, results, exc)
         raise
     except Exception as exc:
         if evidence.exists():
             evidence.unlink()
         import traceback
         traceback.print_exc()
+        write_diagnostic(evidence, results, type(exc).__name__+': '+str(exc))
         fail('gates', type(exc).__name__+': '+str(exc))
 
 def main():

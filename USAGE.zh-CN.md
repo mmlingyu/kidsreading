@@ -1,6 +1,6 @@
 # HTML 技能使用说明
 
-版本目录：`reader-phase1-20261117-r5-html5`。html1、html2、html3 和 html4 不能部署。这不是已验收标签，也不要替换正在服务的阅读器。服务器上的真实模型验收还没有做。下面的域名写成 `https://SERVICE`。示例里没有 Token。
+版本目录：`reader-phase1-20261117-r5-html6`。html1 到 html5 不能部署。这不是已验收标签，也不要替换正在服务的阅读器。服务器上的真实模型验收还没有做。下面的域名写成 `https://SERVICE`。示例里没有 Token。
 
 2026-11-18 19:29 已允许把这 7 个技能源码公开进仓库。样例 HTML 没有打进发布包。
 
@@ -72,7 +72,7 @@ Invoke-RestMethod -Method Post -Headers $headers -ContentType "application/json"
 - `prepare` 不把 studio 用户加入 `reader-data`。`/etc/reader` 只加目录搜索 `x`，`owners.json` 只加 `r`。回滚用 prepare 当时的 ACL 快照，不用 `setfacl -b`。已有的 `worker.env` 密钥和生成开关保持原样。
 - jobs 在独立 128MiB `nosuid,nodev,noexec` 盘。挂载单元名是 `var-lib-studio-jobs.mount`，不是 `studio-jobs.mount`。`prepare` 会清掉旧的无效 unit，不重做已经挂上的盘。
 - 现网 HTTPS 是 `local-tts-edge.service` 和 `/etc/local-tts-edge/Caddyfile`。`deploy/edge-studio.sh install` 备份后只插入 studio 前缀，校验整份文件，再 `reload` 这个 unit。`validate-studio-caddy.sh` 只检查片段。
-- `gate` 先 `systemd-analyze verify`，再按 unit 里的 runtime 和只读 cache 跑六项探针，并对三个可调用技能各做一次真实 bwrap 绑定。`enable` 只有探针通过且哈希等于本树 `TRUSTED-SHA256.json` 时才写签署并打开生成。不要沿用 r5、html1、html2、html3 或 html4 的签署。cgroup 探针要同时读回 `memory.max` 和 `memory.swap.max=0`，并用 `oom_kill` 证明分配被杀掉。
+- `gate` 先 `systemd-analyze verify`，再按 unit 里的 runtime 和只读 cache 跑六项探针，并对三个可调用技能各做一次真实 bwrap 绑定。`enable` 只有探针通过且哈希等于本树 `TRUSTED-SHA256.json` 时才写签署并打开生成。不要沿用 r5 或 html1 到 html5 的签署。`/opt/reader-runtime/bin/python` 是受信包装器，gate 只接受它启动 runtime 里的 venv，并核对 Python 3.12 与 SDK `0.2.2rc2`。失败诊断 `gate-diagnostic.json` 不是签署。
 - 密钥只在 worker 的 env 文件里。进程启动读一次，之后从环境删除；同一进程的后续任务复用内存里的那一份。不进 bwrap 的环境或参数。
 
 Studio 的 api 和 worker 共用 `studio-data`，目录 `2770`，`UMask=0007`。数据库和发布文件是 `0660`。取消不会把已经取消的任务写成 ready。总时限默认 600 秒、硬上限 900 秒；产物没有更新时默认 180 秒、硬上限 300 秒。

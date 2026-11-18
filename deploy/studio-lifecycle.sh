@@ -50,6 +50,8 @@ group=sys.argv[4]
 digest=hashlib.sha256((src/'TRUSTED-SHA256.json').read_bytes()).hexdigest()
 evidence=json.loads((var/'gate-evidence.json').read_text())
 keys=('source_parity_reviewed','namespace_negative_probes','filesystem_hard_quota','systemd_cgroup_limits','linux_py312_sdk_smoke','https_auth_checked')
+if evidence.get('signed') is False or evidence.get('accepted') is False:
+    raise SystemExit('a failure diagnostic is not a signature; generation stays off')
 if evidence.get('trusted_manifest_sha256')!=digest or any(evidence.get(key) is not True for key in keys):
     raise SystemExit('evidence does not match this tree; generation stays off')
 accepted={key: True for key in keys}
