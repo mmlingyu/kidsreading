@@ -21,5 +21,14 @@ GET /api/reader/health：200仅表示worker心跳及当前manifest验收门禁�
 ## 限制与错误
 20–20000字正文、100000字节请求，每owner同时1任务/3次小时、队列20/保留200；429含Retry-After:60；磁盘507；无token401；Origin不允许403；语法400；非JSON415；超大413；幂等冲突409。
 URL语法问题创建返回400。DNS/HTTP/重定向/提取失败则已创建job终态failed，error为固定代码，例如url_address_denied、url_dns_failed、url_connection_failed、url_http_401、url_port_denied、url_redirect_limit、url_redirect_loop、url_content_type_denied、url_body_too_large、url_text_too_long、url_no_readable_text、url_fetch_timeout。不会在error中回显带凭据的URL或响应正文。
-其他failed.error：generation_not_accepted、model_credential_unavailable、worker_restarted、queue_timeout、job_timeout、artifact_missing、generation_failed_or_blocked、validation_or_playtest_failed、isolated_worker_failed。
+其他failed.error：generation_not_accepted、model_credential_unavailable、worker_restarted、queue_timeout、job_timeout、artifact_missing、generation_failed_or_blocked、validation_or_playtest_failed、isolated_worker_failed、unsafe_broker_directory。`unsafe_broker_directory` 只表示共享 run 目录权限不对，错误和日志都不带路径。
 原质量检查失败最多修订2次，每次复查；最多2次无产物max-tokens续写；全job15分钟及模型预算不重置。前端每请求15秒、每2秒不重叠轮询、总16分钟。网络/鉴权失败停止自动轮询，保留不透明job id供显式恢复；刷新后需重新输入token。
+
+## r5：腾讯云语音（Reader Bearer、同源）
+GET `/api/reader/tts/voices?engine=piper` 或`phonon`，不得省略/重复engine或增加其他查询参数。
+返回`{"version":1,"engine":"phonon","voices":[{"engine":"phonon","id":"default","name":"Default","language":"en","license":"源标识或未提供"}]}`，仅安全元数据，数量实时读取。现场曾经是 Piper 8 条、Phonon 38 条，生产只试听过 default 与 Zoey，不能据此声称全部音色已测。
+
+POST `/api/reader/tts`，JSON示例`{"engine":"phonon","text":"Hello.","language":"en","voice":"default"}`。
+只支持text/engine/language/voice/speaker；参数限制见R5-CHANGES。成功audio/wav（不是JSON envelope、不是流式推理，也不转发 x-streaming）；只白名单音频头，Cache-Control no-store。请求≤14000bytes，上游音频≤12MiB/PCM16mono/≤200秒，接口总超时210秒，客户端220秒。每owner音频60/min、音色20/min，上游全局并发1；429忙Retry-After2、限流60。停止会关闭HTTP及播放，不等于终止上游不可取消的原推理。
+
+401 Reader鉴权失败；400 `tts_bad_*`/`tts_han_text`/`tts_invalid_text`等不原样重试；413请求过大；429忙/限流；503 tts_not_configured；502上游授权/不可用/无效音频/超限；504超时。错误仍`{"version":1,"detail":"固定脱敏码"}`，不包含上游错误正文/路径/密钥。无TTS Token传入浏览器，无匿名代理。

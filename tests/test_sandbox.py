@@ -20,6 +20,8 @@ r={}
 r['host_file_hidden']=not Path(HOST_FILE).exists()
 r['etc_hidden']=not Path('/etc/passwd').exists()
 r['host_environment_cleared']='HOST_SENTINEL' not in os.environ
+r['tts_environment_cleared']='TTS_API_TOKEN' not in os.environ
+r['tts_file_hidden']=not Path('/etc/reader/tts-client.env').exists()
 for name in ['/work/assets/source.txt','/work/input.json','/work/control.json']:
  try: Path(name).write_text('tampered');r[name]=False
  except OSError:r[name]=True
@@ -33,7 +35,7 @@ Path('/work/result.json').write_text(json.dumps(r))
     (app/'probe.py').write_text(source)
     monkeypatch.setattr(sandbox,'ROOT',root)
     args=sandbox.command(work,sock,runtime=str(runtime),entry='probe.py')
-    result=subprocess.run(args,env={'PATH':'/usr/bin:/bin','HOST_SENTINEL':'FAKE_TEST_VALUE'},capture_output=True,timeout=15)
+    result=subprocess.run(args,env={'PATH':'/usr/bin:/bin','HOST_SENTINEL':'FAKE_TEST_VALUE','TTS_API_TOKEN':'OFFLINE_TEST_TTS_SENTINEL'},capture_output=True,timeout=15)
     assert result.returncode==0,result.stderr.decode()
     assert all(json.loads((work/'result.json').read_text()).values())
     assert sentinel.read_text()=='NOT_PRIVATE_TEST_SENTINEL'

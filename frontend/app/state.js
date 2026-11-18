@@ -2,10 +2,7 @@
 // 多本书：每本书的进度独立分桶存在 S.books[bookId]；
 // 顶层 unlocked / stars / done / last 始终是「当前书」的镜像，
 // 因此 app.js / game.js 里已有的 S.unlocked 等引用完全不用改。
-import {
-  speakClip, stopSpeaking, setEnglishEngine, setPocketVoice, setPhononVoice,
-  pocketVoicesApi, phononVoices, migrateEngine, ttsEngines,
-} from "./tts.js?v=dual5";
+import {speakClip,stopSpeaking,setEnglishEngine,setPiperVoice,setPhononVoice,migrateEngine,ttsEngines} from "./tts.js?v=reader-phase1-r5";
 const KEY = "last-kids-reader-v1";
 export const FIRST_BOOK = "tlkoe";
 
@@ -16,7 +13,7 @@ const DEFAULT = {
   xp: 0,
   words: [],
   items: [],
-  settings: { size: 20, showZh: true, tts: true, syllables: true, engine: "phonon-api", pocketVoice: "alba", phononVoice: "default" },
+  settings: { size: 20, showZh: true, tts: true, syllables: true, engine: "phonon-api", piperVoice: "", piperVoices: {}, phononVoice: "default" },
   quiz: {},
   known: [],
   mistakes: [],
@@ -52,10 +49,11 @@ export const S = load();
 if (typeof S.settings.syllables !== "boolean") S.settings.syllables = true;
 S.settings.engine = migrateEngine(S.settings.engine);
 if (!ttsEngines.some((item) => item.id === S.settings.engine)) S.settings.engine = "phonon-api";
-if (!pocketVoicesApi.some((item) => item.id === S.settings.pocketVoice)) S.settings.pocketVoice = "alba";
-if (!phononVoices.some((item) => item.id === S.settings.phononVoice)) S.settings.phononVoice = "default";
+delete S.settings.pocketVoice;
 setEnglishEngine(S.settings.engine);
-setPocketVoice(S.settings.pocketVoice);
+setPiperVoice(S.settings.piperVoice);
+if(!S.settings.piperVoices||typeof S.settings.piperVoices!=='object'||Array.isArray(S.settings.piperVoices))S.settings.piperVoices={};
+for(const language of ['zh','fr','ja','ko'])setPiperVoice(S.settings.piperVoices[language],language);
 setPhononVoice(S.settings.phononVoice);
 if (!Array.isArray(S.known)) S.known = [];
 if (!Array.isArray(S.mistakes)) S.mistakes = [];
@@ -132,7 +130,7 @@ export function toast(msg) {
   el._t = setTimeout(() => el.classList.remove("show"), 1900);
 }
 
-// 朗读交给 tts.js。英文走本地服务，中文走浏览器语音。这里只检查开关并转交。
+// 朗读交给 tts.js。云端Piper/Phonon，浏览器语音由用户明确选择；Phonon中文提示明确使用浏览器。这里只检查开关并转交。
 export function stopSpeech() {
   stopSpeaking();
 }

@@ -1,14 +1,18 @@
-# Reader Phase1 reader-phase1-20261117-r4
+# Reader Phase1 reader-phase1-20261117-r5
 
-r4是r3的RestrictSUIDSGID/烟测布局/版本号修复，不含TTS变更。
+r4基线上的腾讯云Piper/Phonon语音接入，box代码与离线回归交付，不是上线/真实试听证明。
 
-- 运行服务不再显式mkdir/chmod setgid目录；生产DATA与jobs共享根必须由部署root预建root:reader-data2770，服务只校验。普通job目录仅请求0770，组/SGID由父目录内核继承，不重设。
-- 生产烟测改为root预建独立合成fixture+同保护的实例化unit；烟测必须实际证明mkdir/chmod setgid返回EPERM，然后完成真实SDK首启、两次恢复repair、原QA、取消与重启清理。
-- root只读原生缓存与noexec任务/session/tmp布局保持；SDK0.2.2rc2、预算、单队列、owner鉴权、URL安全、原技能/QA、0660 SQLite及跨UID锁不回退。
-- 包VERSION、health.release、目录名、前端cache-buster统一r4；构建器拒绝VERSION/目录不一致。
+- 新Reader鉴权同源TTS代理，固定127.0.0.1:8800；动态脱敏音色/授权标识、串行WAV、取消、超时、并发/限流/大小边界。
+- Token仅浏览器内存；独立TTS_API_TOKEN只给reader-api，不给模型worker/sandbox。旧TTS服务/鉴权完全不变。
+- 无Pocket启用/安装、无静默云端失败降级；保留明确browser备用、阅读进度与本地书稿入库。
+- 原生成隔离/原技能QA/预算/SDK锁保留，VERSION与frontend/overlay cache-buster同步r5；包内门禁示例仍六false/ENABLE0，部署必须按新hash重新验证。
 
-入口：`R4-CHANGES.zh-CN.md`、`deploy/RUNBOOK.zh-CN.md`；测试与原始源码证据在`evidence/`，原功能对照`SOURCE-PARITY.zh-CN.md`，接口`API.zh-CN.md`。
+详见`R5-CHANGES.zh-CN.md`、`deploy/RUNBOOK-r5.zh-CN.md`、`API.zh-CN.md`、`evidence/`。历史r3/r4手册仅作历史证据，不应代替r5步骤。本包尚未验收。现场音色计数和 default/Zoey 试听不能写成全部音色已测。
 
-这里只完成box发布包；server Python3.12正式unit仍须复验。accepted示例六项false、ENABLE=0；必须按r4新trusted hash重新核验，不因box通过就开启生成。没有读真实凭据/调用真实模型/连接服务器。原r1/r2/r3和上传源ZIP保留，原Git与用户电脑不动。
+发布包：
 
-box回归：Python3.13，114 pytest通过（1条第三方弃用warning）；两个真实非root UID+完整mode-bit seccomp SQLite通过；真实SDK/假模型在noexec+真实filter下首启、两次session恢复repair、取消/重启清理通过。box bwrap0.12不兼容该官方filter，完整回归使用独立root-owned官方Ubuntu24.04 bwrap0.9副本，生产binary未改；详见R4-CHANGES。正式Tencent Python3.12 unit仍待验证。
+```bash
+python3 tools/stage_release.py --output /tmp/reader-phase1-20261117-r5.tar.gz
+```
+
+不要在含维护说明或历史 `tts/` 的 Git 根目录直接运行 `tools/build_release.py`。服务器须按新 `TRUSTED-SHA256.json` 重验六项门禁和 `READER_ENABLE_GENERATION`，示例仍为六项 false、生成 0，不能沿用 r4 签署。最小凭据是 root:root 0600 的 `/etc/reader/tts-client.env`，只含 `TTS_API_TOKEN`，只由 reader-api 加载。回滚步骤在 `deploy/RUNBOOK-r5.zh-CN.md`。

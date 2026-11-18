@@ -2,7 +2,7 @@
 // 英文剧情旁白与中文引导按队列依次朗读，互不打断；朗读期间自动压低环境音与配乐。
 // 引导语音可独立开关、可重听；同一类提示在一局冒险里只念一次，避免打扰。
 import { sound } from "./audio.js";
-import { S, utter, esc, toast, stopSpeech } from "./state.js";
+import { S, utter, esc, toast, stopSpeech } from "./state.js?v=reader-phase1-r5";
 
 export const HINTS = {
   welcome: (ch) => `第 ${ch} 章冒险开始！`,

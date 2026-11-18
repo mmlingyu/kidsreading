@@ -1,7 +1,7 @@
 // 划词朗读：在阅读正文里拖选任意片段，浮出小工具条。
 // 短语/整句 → 连续朗读（可慢速）；单个单词 → 额外给音节、IPA 音标与逐音节跟读。
 // 中文选区自动切 zh-CN 语音；与「点词弹层」互斥，不会同时弹两个。
-import { S, utter, addWord, toast, esc, stopSpeech } from "./state.js";
+import { S, utter, addWord, toast, esc, stopSpeech } from "./state.js?v=reader-phase1-r5";
 import { syllableHTML, ipaHTML, ipaOf, readSyllables, syllableSource } from "./syllables.js";
 
 let bar = null;

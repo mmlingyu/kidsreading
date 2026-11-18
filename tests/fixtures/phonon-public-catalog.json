@@ -1,0 +1,232 @@
+{
+  "license": "Apache-2.0",
+  "voices": [
+    {
+      "id": "default",
+      "name": "Default",
+      "language": "en"
+    },
+    {
+      "id": "NbpkqMVS3CJeq2j8",
+      "name": "Zoey",
+      "locale": "en-US",
+      "language": "en"
+    },
+    {
+      "id": "NIWIOv5vTi5eRMj8",
+      "name": "Juniper",
+      "locale": "en-US",
+      "language": "en"
+    },
+    {
+      "id": "vjFyp2BcCyTlUmYb",
+      "name": "Everly",
+      "locale": "en-US",
+      "language": "en"
+    },
+    {
+      "id": "4SZHfMpw-p46Ywgs",
+      "name": "Harper",
+      "locale": "en-US",
+      "language": "en"
+    },
+    {
+      "id": "bXwrkHhURL1VFJdG",
+      "name": "Hadley",
+      "locale": "en-US",
+      "language": "en"
+    },
+    {
+      "id": "nGzMHMPAWGaJFHOo",
+      "name": "Delia",
+      "locale": "en-US",
+      "language": "en"
+    },
+    {
+      "id": "LMDIYE0Oa377Qh6Z",
+      "name": "Easton",
+      "locale": "en-US",
+      "language": "en"
+    },
+    {
+      "id": "40QrMVgAxFiUnP9f",
+      "name": "Micah",
+      "locale": "en-US",
+      "language": "en"
+    },
+    {
+      "id": "0zLApsZfVLLNaEGl",
+      "name": "Trevor",
+      "locale": "en-US",
+      "language": "en"
+    },
+    {
+      "id": "_6Aslh2DxfmnRLmP",
+      "name": "Russell",
+      "locale": "en-US",
+      "language": "en"
+    },
+    {
+      "id": "qIxlZ7Ei8KvWlyQH",
+      "name": "Preston",
+      "locale": "en-US",
+      "language": "en"
+    },
+    {
+      "id": "d9XCyhjo4JhkHF1d",
+      "name": "Miles",
+      "locale": "en-US",
+      "language": "en"
+    },
+    {
+      "id": "6PWnV0Nq4wu7RVBT",
+      "name": "Maeve",
+      "locale": "en-GB",
+      "language": "en"
+    },
+    {
+      "id": "GgfEkEJtxZR7gnpy",
+      "name": "Freya",
+      "locale": "en-GB",
+      "language": "en"
+    },
+    {
+      "id": "uem82D50GRv2Dwma",
+      "name": "Pippa",
+      "locale": "en-GB",
+      "language": "en"
+    },
+    {
+      "id": "y9bQqIDnyxwqK01t",
+      "name": "Elodie-Rose",
+      "locale": "en-GB",
+      "language": "en"
+    },
+    {
+      "id": "gDT1nz7Ie36ZhL-C",
+      "name": "Imogen",
+      "locale": "en-GB",
+      "language": "en"
+    },
+    {
+      "id": "m9MxpY6IUGXtWp76",
+      "name": "Lottie",
+      "locale": "en-GB",
+      "language": "en"
+    },
+    {
+      "id": "X6NceqF285Gr04gb",
+      "name": "Alfie",
+      "locale": "en-GB",
+      "language": "en"
+    },
+    {
+      "id": "YyKcxPG7iIgS3jsK",
+      "name": "Hugh",
+      "locale": "en-GB",
+      "language": "en"
+    },
+    {
+      "id": "zUCxzrOrugTSis03",
+      "name": "Edwin",
+      "locale": "en-GB",
+      "language": "en"
+    },
+    {
+      "id": "JOW0vchyswkQUMDS",
+      "name": "Spencer",
+      "locale": "en-GB",
+      "language": "en"
+    },
+    {
+      "id": "dME3IWyZBvmh1n1q",
+      "name": "Toby",
+      "locale": "en-GB",
+      "language": "en"
+    },
+    {
+      "id": "Zn7g6NxLqXlJb7Qi",
+      "name": "Teddy",
+      "locale": "en-GB",
+      "language": "en"
+    },
+    {
+      "id": "gfP44RlHwr2kEwk7",
+      "name": "Bryony",
+      "locale": "en-GB",
+      "language": "en"
+    },
+    {
+      "id": "xPDpsV3F592srkjA",
+      "name": "Captain Silas Blackwater",
+      "locale": "character",
+      "language": "en"
+    },
+    {
+      "id": "nOykTmcH9ydsGGIc",
+      "name": "Morwenna of the Deep",
+      "locale": "character",
+      "language": "en"
+    },
+    {
+      "id": "lX3LavMNdlIbgEHH",
+      "name": "Old Mortlake",
+      "locale": "character",
+      "language": "en"
+    },
+    {
+      "id": "dGyGDKo2osj7h3s7",
+      "name": "Azgorath",
+      "locale": "character",
+      "language": "en"
+    },
+    {
+      "id": "cXoIXJ2llS8S0WOW",
+      "name": "Fennick the Young Elf",
+      "locale": "character",
+      "language": "en"
+    },
+    {
+      "id": "GXaSqMEmOg12OIYb",
+      "name": "The Thing Under the Stairs",
+      "locale": "character",
+      "language": "en"
+    },
+    {
+      "id": "xO8xQo3BrB8FuI6J",
+      "name": "Vyrmathrax the Ancient",
+      "locale": "character",
+      "language": "en"
+    },
+    {
+      "id": "cYtsRSxV5q9IMehn",
+      "name": "Grub the Ogre",
+      "locale": "character",
+      "language": "en"
+    },
+    {
+      "id": "gSgG5Tor0GPEnqzC",
+      "name": "Master Aldric",
+      "locale": "character",
+      "language": "en"
+    },
+    {
+      "id": "NIWoEurJHMJjyUTe",
+      "name": "The Snow Queen",
+      "locale": "character",
+      "language": "en"
+    },
+    {
+      "id": "y2eiKxtQo2B67deU",
+      "name": "Sir Bramwell",
+      "locale": "character",
+      "language": "en"
+    },
+    {
+      "id": "QXNr0SvkukLB4wPq",
+      "name": "Fairy Godmother",
+      "locale": "character",
+      "language": "en"
+    }
+  ]
+}

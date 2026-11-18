@@ -25,5 +25,5 @@ def test_uuid_smoke_fixture_fits_linux_unix_socket_limit():
     data=re.search(r'--data ([^\s]+)',unit).group(1).replace('%i','a'*32)
     assert len(str(Path(data)/'run'/('b'*32+'.sock')).encode())<=107
     script=(root/'deploy/run-noexec-smoke.sh').read_text()
-    assert 'BASE=/var/lib/reader/jobs/.r4-$ID' in script
-    assert r"r'\.r4-[a-f0-9]{32}'" in script
+    assert 'BASE=/var/lib/reader/jobs/.r5-$ID' in script
+    assert r"r'\.r5-[a-f0-9]{32}'" in script

@@ -21,6 +21,26 @@ def test_gate_is_fail_closed(store,monkeypatch):
     r=row(store); Worker(store).run_one(r,key=None)
     assert store.get('a',r['id'])['error']=='generation_not_accepted'
 
+def test_unsafe_broker_directory_is_not_swallowed(store,monkeypatch,caplog):
+    import logging,stat
+    from pathlib import Path
+    import reader_service.worker as m
+    monkeypatch.setattr(m,'verify_manifest',lambda:None)
+    monkeypatch.setattr(m,'accepted',lambda:True)
+    monkeypatch.setenv('READER_ENABLE_GENERATION','1')
+    real=Path.lstat
+    def spoof(self,*args,**kwargs):
+        found=real(self,*args,**kwargs)
+        if self.name=='run':return type('S',(),{'st_mode':stat.S_IFDIR|0o755,'st_uid':os.geteuid()})()
+        return found
+    monkeypatch.setattr(Path,'lstat',spoof)
+    r=row(store)
+    with caplog.at_level(logging.WARNING):
+        Worker(store).run_one(r,key='FAKE-NOT-A-PROVIDER-KEY')
+    assert store.get('a',r['id'])['error']=='unsafe_broker_directory'
+    assert 'code=unsafe_broker_directory' in caplog.text
+    assert 'FAKE-NOT-A-PROVIDER-KEY' not in caplog.text and 'happy story' not in caplog.text
+
 def test_missing_model_key_is_terminal(store,monkeypatch):
     import reader_service.worker as m
     monkeypatch.setattr(m,'verify_manifest',lambda:None)

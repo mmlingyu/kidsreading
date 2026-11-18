@@ -4,7 +4,13 @@ import ast,gzip,hashlib,json,shutil,stat,tarfile,zipfile
 from pathlib import Path
 ROOT=Path(__file__).resolve().parent.parent
 version=next(ast.literal_eval(n.value) for n in ast.parse((ROOT/'reader_service/__init__.py').read_text()).body if isinstance(n,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='VERSION' for t in n.targets))
-if version!=ROOT.name:raise SystemExit('release folder and package VERSION mismatch')
+if version!=ROOT.name:raise SystemExit('release folder and package VERSION mismatch\nStage first: python3 tools/stage_release.py --output /tmp/'+version+'.tar.gz')
+# Git checkouts also contain maintenance notes and the historical Kokoro tree.
+# Packing those would publish a different tree than the deployable release.
+FOREIGN_FILES={'.gitignore','README.md','MAINTENANCE.zh-CN.md','speech.js','phonon-sw.js','test-speech-plan.mjs','test-synth-queue.mjs'}
+FOREIGN_DIRS={'docs','maintenance','tts','.git'}
+foreign=[name for name in sorted(FOREIGN_FILES) if (ROOT/name).exists()]+[name+'/' for name in sorted(FOREIGN_DIRS) if (ROOT/name).exists()]
+if foreign:raise SystemExit('refusing to pack checkout maintenance or historical speech tools: '+', '.join(foreign)+'\nStage first: python3 tools/stage_release.py --output /tmp/'+version+'.tar.gz')
 EXCLUDED={'__pycache__','.pytest_cache','.git'}
 for p in sorted(ROOT.rglob('*'),key=lambda p:len(p.parts),reverse=True):
     if p.is_dir() and p.name in EXCLUDED: shutil.rmtree(p)
