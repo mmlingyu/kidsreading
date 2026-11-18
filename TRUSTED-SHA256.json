@@ -1,5 +1,5 @@
 {
-  "reader_service/__init__.py": "18d92d31159a76e7c612008a552a15f7c0f799fedb514d596d66e13a2bcee2a7",
+  "reader_service/__init__.py": "beddd07c8016185ed89b73ed23406360b0c178650eeaf09bef4a9755fff4beab",
   "reader_service/acceptance.py": "7b1d7751c9178526e319251fb4636f907d50cafc27ea4584c4fae283d6b80640",
   "reader_service/allowed-media.json": "4d00c6706eba6a1ffda9ef11d696ede3455df3a9b3ca746b5da707faf59c8a00",
   "reader_service/api.py": "89fd0fe5271f40704a75efa4d1168d77b2a8755ad456a4efa6f80b5a9d81650d",

@@ -130,6 +130,7 @@ def apply_process_env(config):
         'STUDIO_RUNTIME': config['runtime'],
         'STUDIO_CURRENT': config['current'],
         'STUDIO_JOBS': config['jobs'],
+        'STUDIO_PYTHON_BIN': config['python'],
     }
     for key, value in expected.items():
         current=os.environ.get(key)

@@ -5,7 +5,7 @@ Mocking the model response is allowed. The SDK, bwrap, gateway object, owner
 checks and filesystem layout are not mocked. Failure deletes a partial evidence
 file and does not change accepted.json or the generation switch.
 """
-import hashlib, json, os, shutil, stat, subprocess, sys, tempfile, time
+import hashlib, json, os, shutil, signal, stat, subprocess, sys, tempfile, time
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parent.parent
@@ -127,39 +127,103 @@ def probe_quota():
             leftover.unlink()
         shutil.rmtree(work, ignore_errors=True)
 
+CGROUP_EVIDENCE={}
+
+def memory_events(scope):
+    data={}
+    for line in (scope/'memory.events').read_text().splitlines():
+        key, value=line.split()
+        data[key]=int(value)
+    return data
+
+def close_scope(scope):
+    if not scope.exists():
+        return
+    try:
+        for pid in (scope/'cgroup.procs').read_text().split():
+            try: os.kill(int(pid), signal.SIGKILL)
+            except ProcessLookupError: pass
+    except OSError:
+        pass
+    for name in ('memory.max','memory.swap.max'):
+        try: (scope/name).write_text('max')
+        except OSError: pass
+    for _ in range(30):
+        try:
+            scope.rmdir()
+            return
+        except OSError:
+            time.sleep(0.05)
+
+def exercise_memory_scope(swap_max, name='studio-gate-scope'):
+    """Apply one private memory scope. Does not change any other cgroup."""
+    if os.geteuid()!=0:
+        raise SystemExit('systemd_cgroup_limits: root required for the live memory scope')
+    scope=Path('/sys/fs/cgroup')/name
+    if scope.exists():
+        procs=(scope/'cgroup.procs').read_text().strip()
+        if procs:
+            raise SystemExit('systemd_cgroup_limits: scope '+name+' still holds processes '+procs)
+        scope.rmdir()
+    scope.mkdir()
+    try:
+        swap_file=scope/'memory.swap.max'
+        if not swap_file.is_file():
+            raise SystemExit('systemd_cgroup_limits: memory.swap.max is missing; MemorySwapMax=0 cannot be proven')
+        swap_file.write_text(str(swap_max))
+        (scope/'memory.max').write_text('8388608')
+        swap_seen=swap_file.read_text().strip()
+        max_seen=(scope/'memory.max').read_text().strip()
+        if swap_seen!=str(swap_max):
+            raise SystemExit('systemd_cgroup_limits: memory.swap.max readback was '+swap_seen+', expected '+str(swap_max))
+        if max_seen!='8388608':
+            raise SystemExit('systemd_cgroup_limits: memory.max readback was '+max_seen+', expected 8388608')
+        before=memory_events(scope)
+        try:
+            result=subprocess.run([sys.executable,'-c',
+                'import os\n'
+                'fd=os.open('+repr(str(scope/'cgroup.procs'))+', os.O_WRONLY)\n'
+                'os.write(fd, str(os.getpid()).encode()); os.close(fd)\n'
+                'b=bytearray(32*1024*1024)\n'
+                'print(len(b))\n'],
+                capture_output=True, timeout=20)
+            code=result.returncode
+            timed_out=False
+        except subprocess.TimeoutExpired:
+            code=None
+            timed_out=True
+        after=memory_events(scope)
+        evidence={
+            'memory_max': max_seen,
+            'memory_swap_max': swap_seen,
+            'returncode': code,
+            'timed_out': timed_out,
+            'oom': after.get('oom',0)-before.get('oom',0),
+            'oom_kill': after.get('oom_kill',0)-before.get('oom_kill',0),
+            'oom_group_kill': after.get('oom_group_kill',0)-before.get('oom_group_kill',0),
+            'events_after': after,
+        }
+        return evidence
+    finally:
+        close_scope(scope)
+        if scope.exists():
+            raise SystemExit('systemd_cgroup_limits: scope '+name+' was not removed')
+
 def probe_cgroup():
-    api=(ROOT/'deploy'/'studio-api.service').read_text()
-    worker=(ROOT/'deploy'/'studio-worker.service').read_text()
+    from tools.studio_units import load, unit_dir
+    config=load(unit_dir())
+    api=config['api'].read_text()
+    worker=config['worker'].read_text()
     for text, required in ((api, ('MemoryMax=128M','MemorySwapMax=0','TasksMax=32','UMask=0007','--host 127.0.0.1','--port 6011')),
                            (worker, ('MemoryMax=384M','MemorySwapMax=0','TasksMax=32','UMask=0007','ProtectControlGroups=true','LimitFSIZE=32M'))):
         for item in required:
             if item not in text:
                 fail('systemd_cgroup_limits', item)
-    if os.geteuid()!=0:
-        fail('systemd_cgroup_limits','root required for the live memory scope')
-    scope=Path('/sys/fs/cgroup/studio-gate-scope')
-    if scope.exists():
-        fail('systemd_cgroup_limits','a previous scope is still present')
-    try:
-        scope.mkdir()
-        (scope/'memory.max').write_text('8388608')
-        result=subprocess.run([sys.executable,'-c',
-            'import os; fd=os.open("/sys/fs/cgroup/studio-gate-scope/cgroup.procs", os.O_WRONLY); os.write(fd, str(os.getpid()).encode()); os.close(fd); b=bytearray(32*1024*1024)'],
-            capture_output=True, timeout=20)
-        if result.returncode==0:
-            fail('systemd_cgroup_limits','allocation survived an 8MiB memory.max')
-    finally:
-        if scope.exists():
-            try: (scope/'memory.max').write_text('max')
-            except OSError: pass
-            for _ in range(30):
-                try:
-                    scope.rmdir()
-                    break
-                except OSError:
-                    time.sleep(0.05)
-        if scope.exists():
-            fail('systemd_cgroup_limits','scope was not removed')
+    evidence=exercise_memory_scope('0')
+    CGROUP_EVIDENCE.clear()
+    CGROUP_EVIDENCE.update(evidence)
+    if evidence['timed_out'] or evidence['returncode']!=-signal.SIGKILL or evidence['oom_kill']<1 or evidence['oom']<1:
+        fail('systemd_cgroup_limits', 'expected SIGKILL and oom_kill with memory.max=8388608 memory.swap.max=0, got '+json.dumps(evidence))
 
 def probe_sdk():
     try:
@@ -177,6 +241,21 @@ def probe_sdk():
     cache_stat=(Path(cache)/'home').stat()
     if cache_stat.st_uid!=0 or cache_stat.st_mode & 0o022:
         fail('linux_py312_sdk_smoke','runtime cache is not root-owned and group/world read-only')
+    expected=os.environ.get('STUDIO_PYTHON_BIN','')
+    if not expected or Path(sys.executable).resolve()!=Path(expected).resolve():
+        fail('linux_py312_sdk_smoke','gate python '+sys.executable+' is not the worker unit ExecStart '+expected)
+    preflight=subprocess.run([sys.executable,'-c','import fastapi,starlette,deepseek_harness,reader_service.studio_api'],
+                             env={'PATH':'/usr/bin:/bin','PYTHONPATH':str(ROOT),'PYTHONDONTWRITEBYTECODE':'1'}, capture_output=True, text=True)
+    if preflight.returncode!=0:
+        fail('linux_py312_sdk_smoke', 'runtime is missing a production import: '+(preflight.stderr or '')[-300:])
+    user=os.environ.get('STUDIO_WORKER_USER','studio-worker')
+    bwrap=shutil.which('bwrap')
+    if not can(user, '-x', bwrap):
+        fail('linux_py312_sdk_smoke', user+' cannot execute '+str(bwrap))
+    for skill_id in ('html-builder','zdog','knowledge-travel'):
+        skill=Path(os.environ.get('STUDIO_CURRENT', str(ROOT)))/'skills'/'html-skills'/skill_id/'SKILL.md'
+        if not can(user, '-r', skill):
+            fail('linux_py312_sdk_smoke', user+' cannot read '+str(skill))
     os.environ['DEEPSEEK_API_KEY']='GATE-PROBE-NOT-A-REAL-KEY'
     from reader_service.studio_worker import take_model_key
     first=take_model_key()
@@ -206,9 +285,24 @@ def probe_sdk():
         finally:
             shutil.rmtree(base, ignore_errors=True)
 
+def asgi_status(app, method, path, headers=None, body=b''):
+    """Call the ASGI app directly. The production runtime does not install httpx."""
+    import asyncio
+    status={}
+    async def receive():
+        return {'type':'http.request','body':body,'more_body':False}
+    async def send(message):
+        if message['type']=='http.response.start':
+            status['code']=message['status']
+    header_list=[(key.lower().encode(), value.encode()) for key, value in (headers or {}).items()]
+    scope={'type':'http','asgi':{'version':'3.0'},'http_version':'1.1','method':method,'scheme':'http',
+           'path':path,'raw_path':path.encode(),'query_string':b'','headers':header_list,
+           'client':('127.0.0.1',0),'server':('127.0.0.1',6011)}
+    asyncio.run(app(scope, receive, send))
+    return status.get('code')
+
 def probe_auth():
     import hashlib
-    from fastapi.testclient import TestClient
     from reader_service.studio_api import create_app
     from reader_service.studio_store import StudioSettings
     token='A'*48
@@ -216,15 +310,15 @@ def probe_auth():
     root=Path(tempfile.mkdtemp(prefix='studio-auth-'))
     try:
         app=create_app(StudioSettings(root, owners, origins=('https://studio.example',)))
-        with TestClient(app) as client:
-            if client.get('/api/studio/skills').status_code!=401:
-                fail('https_auth_checked','anonymous request was accepted')
-            blocked=client.post('/api/studio/jobs', json={'skill':'grill-me','brief':'no'}, headers={'Authorization':'Bearer '+token})
-            if blocked.status_code!=403:
-                fail('https_auth_checked','blocked skill was accepted')
-            other=client.get('/api/studio/jobs/'+'ab'*16, headers={'Authorization':'Bearer '+('B'*48)})
-            if other.status_code!=401:
-                fail('https_auth_checked','unknown bearer was accepted')
+        if asgi_status(app, 'GET', '/api/studio/skills')!=401:
+            fail('https_auth_checked','anonymous request was accepted')
+        blocked=asgi_status(app, 'POST', '/api/studio/jobs', {'authorization':'Bearer '+token,'content-type':'application/json'},
+                            b'{"skill":"grill-me","brief":"no"}')
+        if blocked!=403:
+            fail('https_auth_checked','blocked skill was accepted')
+        other=asgi_status(app, 'GET', '/api/studio/jobs/'+'ab'*16, {'authorization':'Bearer '+('B'*48)})
+        if other!=401:
+            fail('https_auth_checked','unknown bearer was accepted')
         unit=(ROOT/'deploy'/'studio-api.service').read_text()
         if '--host 127.0.0.1 --port 6011' not in unit:
             fail('https_auth_checked','API is not bound to the loopback port')
@@ -322,6 +416,8 @@ def run(evidence_path):
             'unix_time': int(time.time()),
         }
         payload.update(results)
+        if CGROUP_EVIDENCE:
+            payload['cgroup']={key:CGROUP_EVIDENCE[key] for key in ('memory_max','memory_swap_max','returncode','oom','oom_kill')}
         evidence.parent.mkdir(parents=True, exist_ok=True)
         temporary=evidence.with_suffix('.tmp')
         temporary.write_text(json.dumps(payload, indent=2)+'\n')

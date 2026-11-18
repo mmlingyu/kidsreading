@@ -1,6 +1,6 @@
-# HTML 技能部署（html4，服务器尚未验收）
+# HTML 技能部署（html5，服务器尚未验收）
 
-版本目录是 `reader-phase1-20261117-r5-html4`。不要安装 html1、html2 或 html3。不要把这个目录接成 `/opt/reader/current`。不要运行 reader 的 `prepare.sh`、`switch.sh` 或 `rollback.sh`。不要重启 reader-api:6010、TTS:8800 或 Harness:3080。不要执行 html2 备份里的 `ROLLBACK.sh`。html3 的边缘已经用官方 restore 撤掉，不要再 restore 一次。
+版本目录是 `reader-phase1-20261117-r5-html5`。不要安装 html1、html2、html3 或 html4。不要把这个目录接成 `/opt/reader/current`。不要运行 reader 的 `prepare.sh`、`switch.sh` 或 `rollback.sh`。不要重启 reader-api:6010、TTS:8800 或 Harness:3080。不要执行 html2 备份里的 `ROLLBACK.sh`。html3 的边缘已经用官方 restore 撤掉，不要再 restore 一次。
 
 html3 的 `studio-jobs.mount` 名字不合法，systemd 报 `Where= setting doesn't match unit name`。本包改为 `var-lib-studio-jobs.mount`。生产上那份旧 unit 已 disabled，128MiB jobs 盘仍挂着。`prepare` 会删掉无效 unit 文件并 `daemon-reload`，不会重新 mkfs，也不会卸载现有 jobs 盘。已有的 `/etc/studio/worker.env`（含已注入的密钥、`0600`）不会被覆盖密钥或把生成开关改成 1。
 
@@ -9,10 +9,10 @@ html3 的 `studio-jobs.mount` 名字不合法，systemd 报 `Where= setting does
 ## 先放好的东西
 
 1. 阅读器保持 `/opt/reader/current` → `reader-phase1-20261117-r5`。`/etc/reader` 维持 `0750 root:reader-data`。不要把 studio 用户加入 `reader-data`。
-2. 解包到 `/opt/studio/releases/reader-phase1-20261117-r5-html4`，把 `/opt/studio/current` 改指向这一目录。属主 root，不要做成组可写。
+2. 解包到 `/opt/studio/releases/reader-phase1-20261117-r5-html5`，把 `/opt/studio/current` 改指向这一目录。属主 root，不要做成组可写。html4 的 jobs 盘和 `var-lib-studio-jobs.mount` 保持不动，不要 mkfs，不要 umount。
 3. `/opt/reader-runtime/bin/python` 和 `/opt/reader-runtime-cache-0.2.2rc2` 保持 root 所有、组和其他不可写。
 
-核对包。打印出的哈希必须等于后面 `gate` 的 `trusted_manifest_sha256`。不要填 html3 的 `afd28f868f09e2bd648af6bee66765994ebf25cfefacf3e956140431b6b7e24e`。
+核对包。打印出的哈希必须等于后面 `gate` 的 `trusted_manifest_sha256`。不要填 html4 的 `4f6c9df7d54527e3e509fa82ead6faf72cc81635d00e86e509deee29314db616`。
 
 ```bash
 python3 - <<'PY'
@@ -104,7 +104,7 @@ sudo /opt/studio/current/deploy/studio-lifecycle.sh start
 sudo /opt/studio/current/deploy/studio-lifecycle.sh health
 ```
 
-`start` 启用的是 `var-lib-studio-jobs.mount`，然后才是 api 和 worker。启用前 health 的 `generation` 必须是 `false`，`release` 以 `html4` 结尾。
+`start` 启用的是 `var-lib-studio-jobs.mount`，然后才是 api 和 worker。启用前 health 的 `generation` 必须是 `false`，`release` 以 `html5` 结尾。html4 的正式 start 已经成功过，这一步不要改 unit 名或 MemorySwapMax。
 
 ```bash
 sudo /opt/studio/current/deploy/studio-lifecycle.sh gate
@@ -114,7 +114,9 @@ sudo /opt/studio/current/deploy/studio-lifecycle.sh gate
 
 预期一行 JSON：`{"ok": true, "trusted_manifest_sha256": "<本目录 TRUSTED-SHA256.json 的 sha256>"}`。
 
-六项里的 SDK 探针会对 `html-builder`、`zdog`、`knowledge-travel` 各跑一次真实 bwrap + SDK。命名空间里读到的 `/skill/SKILL.md` 必须是该技能原文，产物检查的是 `preview.html`，不是 `book.json`。不传 skill 时会挂上 `adventure-reader`，那不算通过。上游仍是假流，不代替真实密钥验收。任一探针失败会删掉证据，不改 `accepted.json`，生成保持 0。
+cgroup 探针在私有目录 `/sys/fs/cgroup/studio-gate-scope` 里写入并读回 `memory.max=8388608` 和 `memory.swap.max=0`。成功必须同时是：读回值就是这两个数、子进程被 SIGKILL（退出码 -9）、`memory.events` 里 `oom` 和 `oom_kill` 都增加。只写 `memory.max` 不够：html4 在约 1987MiB swap 上 32MiB 分配活了下来。任何别的非零退出、超时、或没有 `oom_kill`，都不算通过。探针结束会清掉这个临时 cgroup，不改阅读器或其他服务的 cgroup。成功时 JSON 里带实测的 `cgroup` 字段。
+
+六项里的 SDK 探针使用 worker unit 的同一个 Python、同一个 `READER_RUNTIME_CACHE`，并对 `html-builder`、`zdog`、`knowledge-travel` 各跑一次真实 bwrap + SDK。运行前会确认该用户能执行 bwrap、能读这三个 `SKILL.md`，并且这个解释器能导入 fastapi、starlette 和 deepseek_harness。鉴权探针直接调用 ASGI，不依赖测试用的 httpx。命名空间里读到的 `/skill/SKILL.md` 必须是该技能原文，产物检查的是 `preview.html`，不是 `book.json`。不传 skill 时会挂上 `adventure-reader`，那不算通过。上游仍是假流，不代替真实密钥验收。任一探针失败会删掉证据，不改 `accepted.json`，生成保持 0。
 
 ```bash
 sudo /opt/studio/current/deploy/studio-lifecycle.sh enable
@@ -140,4 +142,4 @@ sudo /opt/studio/current/deploy/studio-lifecycle.sh rollback
 
 发布 tar/zip 含完整 `tests/`。云端数字是在目录名等于版本名的展开树里、用 `/tmp/r4-venv` 跑的 pytest。那不是生产门禁。生产门禁是 root 执行 `studio-lifecycle.sh gate`，并且 `systemd-analyze verify` 必须先通过。
 
-本云端没有 PID 1 systemd，所以没有 `systemctl start` 成功的记录。pytest 里的服务进程是按 unit 的用户和命令直接拉起的，不能当成正式 unit 验收。`systemd-analyze verify` 对交付的 mount 单元退出码是 0；对故意改错的 `studio-jobs.mount` 会拒绝。三个技能的 bwrap 读取和 SDK mock 上游在云端跑过。服务器上的正式 start、六项签署、三次真实生成、线上 401/403 和下载头都还没有做。
+html4 的 `systemd-analyze verify` 和正式 `systemctl start` 已在服务器成功，health 为 html4 且 generation false。本云端仍然没有 PID 1 systemd，不能重复那次 start，也不能把 pytest 里直接拉起的进程当成正式 unit。云端默认没有 swap；回归测试临时加一块 64MiB swap，确认 `memory.swap.max=max` 时 32MiB 分配活着、设回 `0` 时 `oom_kill` 增加且退出码为 -9，然后 `swapoff`。三个技能的 bwrap 和 SDK mock 上游在云端跑过。html5 的六项签署、三次真实生成、线上 401/403 和下载头都还没有在服务器上做。
