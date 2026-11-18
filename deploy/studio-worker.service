@@ -1,0 +1,32 @@
+[Unit]
+Description=HTML studio worker beside reader, not a replacement
+After=network.target
+[Service]
+Type=simple
+User=studio-worker
+Group=studio-data
+UMask=0077
+WorkingDirectory=/opt/studio/current
+EnvironmentFile=/etc/studio/worker.env
+UnsetEnvironment=TTS_API_TOKEN
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=STUDIO_USE_SANDBOX=1
+ExecStart=/opt/reader-runtime/bin/python -m reader_service.studio_worker
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=false
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=user pid net ipc uts mnt cgroup
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+CapabilityBoundingSet=
+ReadWritePaths=/var/lib/studio
+MemoryMax=512M
+MemorySwapMax=0
+TasksMax=32
+[Install]
+WantedBy=multi-user.target

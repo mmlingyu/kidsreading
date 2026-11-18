@@ -1,0 +1,50 @@
+{
+  "phase": "brief-text-only",
+  "images": "not-implemented",
+  "url_fetch": "not-implemented",
+  "skills": [
+    {
+      "id": "html-builder",
+      "status": "enabled",
+      "reason": "",
+      "outputs": ["preview.html", "report.md"]
+    },
+    {
+      "id": "zdog",
+      "status": "enabled",
+      "reason": "",
+      "outputs": ["preview.html", "report.md"],
+      "library": "skills/html-skills/zdog/vendor/zdog.dist.min.js"
+    },
+    {
+      "id": "knowledge-travel",
+      "status": "enabled",
+      "reason": "",
+      "outputs": ["preview.html", "report.md"]
+    },
+    {
+      "id": "spdesign",
+      "status": "blocked",
+      "reason": "missing_image_adapter_and_eleven_reference_images",
+      "outputs": []
+    },
+    {
+      "id": "3d-game-dev",
+      "status": "blocked",
+      "reason": "missing_blender_gateway_and_human_target_approval",
+      "outputs": []
+    },
+    {
+      "id": "creation-engine",
+      "status": "blocked",
+      "reason": "missing_3dplay_rules_catalog_and_img2threejs",
+      "outputs": []
+    },
+    {
+      "id": "grill-me",
+      "status": "blocked",
+      "reason": "missing_grilling_skill_and_model_invocation_disabled",
+      "outputs": []
+    }
+  ]
+}

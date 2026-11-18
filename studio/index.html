@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HTML 任务</title>
+  <link rel="stylesheet" href="/studio/app.css" />
+</head>
+<body>
+  <main>
+    <h1>HTML 任务</h1>
+    <p>这不是阅读器，也不会把生成的页面放进书架。Token 只留在这次打开的页面内存里。</p>
+    <label>Reader Token <input id="token" type="password" autocomplete="off" /></label>
+    <label>技能 <select id="skill"></select></label>
+    <p id="reason"></p>
+    <label>brief <textarea id="brief" maxlength="4000"></textarea></label>
+    <p>首期只有文字 brief。不上传图片，也不抓取 URL。</p>
+    <button id="send" type="button">提交</button>
+    <button id="stop" type="button">取消</button>
+    <button id="download" type="button">下载 preview.html</button>
+    <button id="preview" type="button">沙箱预览</button>
+    <p id="status" role="status"></p>
+    <iframe id="frame" sandbox="allow-scripts" title="不可信 HTML 预览"></iframe>
+  </main>
+  <script src="/studio/app.js"></script>
+</body>
+</html>

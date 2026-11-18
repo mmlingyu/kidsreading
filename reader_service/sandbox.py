@@ -18,7 +18,18 @@ def verify_manifest(require_root=True):
         if p.is_symlink() or not p.is_file() or hashlib.sha256(p.read_bytes()).hexdigest()!=digest:
             raise RuntimeError('trusted_source_hash_mismatch')
 
-def command(work, broker, runtime='/opt/reader-runtime', bwrap='/usr/bin/bwrap', entry='sandbox_entry.py',cache=None):
+def _skill_path(skill):
+    import re
+    if skill is None:
+        return ROOT/'skills'/'adventure-reader'
+    if not re.fullmatch(r'html-skills/[a-z0-9][a-z0-9-]*', skill):
+        raise RuntimeError('studio_skill_path')
+    path=ROOT/'skills'/skill
+    if path.is_symlink() or not (path/'SKILL.md').is_file():
+        raise RuntimeError('studio_skill_path')
+    return path
+
+def command(work, broker, runtime='/opt/reader-runtime', bwrap='/usr/bin/bwrap', entry='sandbox_entry.py',cache=None, skill=None):
     cache=Path(cache) if cache is not None else cache_root()
     args=[bwrap,'--unshare-all','--die-with-parent','--new-session','--cap-drop','ALL','--clearenv',
           '--ro-bind','/usr','/usr']
@@ -28,7 +39,7 @@ def command(work, broker, runtime='/opt/reader-runtime', bwrap='/usr/bin/bwrap',
            '--ro-bind',str(Path(runtime).resolve()),'/opt/reader-runtime',
            '--ro-bind',str(ROOT/'reader_service'),'/app',
            '--ro-bind',str(cache/'home'),'/sdk-home',
-           '--ro-bind',str(ROOT/'skills'/'adventure-reader'),'/skill',
+           '--ro-bind',str(_skill_path(skill)),'/skill',
            '--bind',str(Path(work).resolve()),'/work',
            '--ro-bind',str(Path(broker).resolve()),'/run/model.sock',
            '--setenv','PATH','/opt/reader-runtime/bin:/usr/bin:/bin',

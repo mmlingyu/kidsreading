@@ -1,3 +1,7 @@
+# kidsreading · HTML 技能分支
+
+这个分支从已验收 r5 提交 `3d5578003a4a3fefc48f8b711d9c690bbdec4769` 分出。不要改 `R5`、`main` 或稳定标签。使用说明在 `USAGE.zh-CN.md`。发布目录名是 `reader-phase1-20261117-r5-html1`，不要拿去替换 `/opt/reader/current`。
+
 # kidsreading · R5（未验收）
 
 `R5` 从已验收提交 `580a0fa8e49aca1f3e24c3a26a4c31f9a390bdf0` 分出，接入腾讯云 Piper/Phonon。标签 `reader-phase1-20261117-r4` 仍指向该提交。本分支不合并，验收前不打 r5 稳定标签。
