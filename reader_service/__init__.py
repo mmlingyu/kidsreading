@@ -1,2 +1,2 @@
 """Independent source-parity reader cloud adapter."""
-VERSION = "reader-phase1-20261117-r5-html1"
+VERSION = "reader-phase1-20261117-r5-html2"

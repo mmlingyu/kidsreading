@@ -5,7 +5,7 @@ After=network.target
 Type=simple
 User=studio-api
 Group=studio-data
-UMask=0077
+UMask=0007
 WorkingDirectory=/opt/studio/current
 EnvironmentFile=/etc/studio/api.env
 Environment=PYTHONDONTWRITEBYTECODE=1
@@ -21,7 +21,7 @@ ProtectControlGroups=true
 RestrictSUIDSGID=true
 CapabilityBoundingSet=
 ReadWritePaths=/var/lib/studio
-MemoryMax=256M
+MemoryMax=128M
 MemorySwapMax=0
 TasksMax=32
 [Install]

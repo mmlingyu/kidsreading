@@ -141,6 +141,54 @@ def test_reader_app_has_no_studio_route(tmp_path):
     with TestClient(app) as c:
         assert c.get('/api/studio/skills').status_code==404
 
+def test_cancel_around_completion_does_not_become_ready(tmp_path, monkeypatch):
+    import subprocess, threading
+    monkeypatch.setenv('STUDIO_ENABLE_GENERATION','1')
+    monkeypatch.setenv('STUDIO_JOB_TIMEOUT','5')
+    monkeypatch.setenv('STUDIO_PROGRESS_TIMEOUT','5')
+    monkeypatch.setattr('reader_service.studio_worker.accepted', lambda path=None: True)
+    store=StudioStore(settings(tmp_path))
+    row=store.create('ann', {'skill':'html-builder','brief':'取消进行中的任务'})
+    class Slow(StudioWorker):
+        def start_agent(self, work, prompt, sock=None):
+            return subprocess.Popen(['sleep','30'], start_new_session=True)
+    def cancel():
+        import time
+        time.sleep(.2)
+        store.cancel('ann', row['id'])
+    threading.Thread(target=cancel).start()
+    Slow(store).run_one(row)
+    assert store.get('ann', row['id'])['status']=='cancelled'
+    row=store.create('ann', {'skill':'html-builder','brief':'完成前取消'})
+    class Late(Writer):
+        def start_agent(self, work, prompt, sock=None):
+            store.cancel('ann', row['id'])
+            return super().start_agent(work, prompt)
+    Late(store, html_ok()).run_one(row)
+    done=store.get('ann', row['id'])
+    assert done['status']=='cancelled'
+    assert not (store.jobdir(row['id'])/'published'/'preview.html').exists()
+
+def test_deadline_and_progress_stop_the_process_tree(tmp_path, monkeypatch):
+    import subprocess
+    monkeypatch.setenv('STUDIO_ENABLE_GENERATION','1')
+    monkeypatch.setattr('reader_service.studio_worker.accepted', lambda path=None: True)
+    store=StudioStore(settings(tmp_path))
+    monkeypatch.setenv('STUDIO_JOB_TIMEOUT','1')
+    monkeypatch.setenv('STUDIO_PROGRESS_TIMEOUT','30')
+    row=store.create('ann', {'skill':'html-builder','brief':'总时限'})
+    class Tree(StudioWorker):
+        def start_agent(self, work, prompt, sock=None):
+            return subprocess.Popen(['bash','-c','sleep 30 & wait'], start_new_session=True)
+    worker=Tree(store)
+    worker.run_one(row)
+    assert store.get('ann', row['id'])['error']=='studio_deadline'
+    monkeypatch.setenv('STUDIO_JOB_TIMEOUT','30')
+    monkeypatch.setenv('STUDIO_PROGRESS_TIMEOUT','1')
+    row=store.create('ann', {'skill':'html-builder','brief':'没有新产物'})
+    Tree(store).run_one(row)
+    assert store.get('ann', row['id'])['error']=='studio_progress_timeout'
+
 def test_generation_stays_off_without_acceptance(tmp_path, monkeypatch):
     monkeypatch.delenv('STUDIO_ENABLE_GENERATION', raising=False)
     store=StudioStore(settings(tmp_path))

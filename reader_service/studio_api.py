@@ -1,5 +1,5 @@
 """Independent HTML task API. It does not register reader import routes."""
-import json
+import json, time
 from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
@@ -40,7 +40,11 @@ def create_app(settings=None):
         return authenticate(s.owners, request.headers.get('authorization'))
     @app.get('/api/studio/health')
     def health():
-        return {'version':1,'release':VERSION,'studio':True,'reader_replaced':False}
+        beat=store.root/'worker-heartbeat'
+        alive=beat.is_file() and not beat.is_symlink() and time.time()-beat.stat().st_mtime<5
+        from .studio_worker import accepted, generation_enabled
+        return {'version':1,'release':VERSION,'studio':True,'reader_replaced':False,'worker':alive,
+                'generation':bool(generation_enabled() and accepted())}
     @app.get('/api/studio/skills')
     def skills(request: Request):
         owner(request)

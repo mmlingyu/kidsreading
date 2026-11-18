@@ -8,7 +8,13 @@ cd "$SRC"
 getent group studio-data >/dev/null || groupadd --system studio-data
 id studio-api >/dev/null 2>&1 || useradd --system --no-create-home --shell /usr/sbin/nologin --gid studio-data studio-api
 id studio-worker >/dev/null 2>&1 || useradd --system --no-create-home --shell /usr/sbin/nologin --gid studio-data studio-worker
-install -d -o studio-worker -g studio-data -m 0700 /var/lib/studio
+command -v setfacl >/dev/null || { echo 'acl package/setfacl required'; exit 2; }
+install -d -o root -g studio-data -m 2770 /var/lib/studio
+# Read the existing owner-hash file only. Do not chmod it and do not join reader-data:
+# that group can write /var/lib/reader because the reader data directory is 2770.
+if [ -f /etc/reader/owners.json ]; then
+  setfacl -m u:studio-api:r,u:studio-worker:r /etc/reader/owners.json
+fi
 install -d -o root -g studio-data -m 0750 /etc/studio
 [ -e /etc/studio/api.env ] || install -m 0600 deploy/studio-api.env.example /etc/studio/api.env
 [ -e /etc/studio/worker.env ] || install -m 0600 deploy/studio-worker.env.example /etc/studio/worker.env

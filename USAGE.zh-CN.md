@@ -1,6 +1,6 @@
 # HTML 技能使用说明
 
-版本目录：`reader-phase1-20261117-r5-html1`。这不是已验收的 r5 标签，也不要替换正在服务的阅读器。下面的域名写成 `https://SERVICE`，部署时改成实际 HTTPS 源。示例里没有 Token。
+版本目录：`reader-phase1-20261117-r5-html2`。html1 不能部署。这不是已验收标签，也不要替换正在服务的阅读器。生成和六项门禁都还没有在服务器上验收。下面的域名写成 `https://SERVICE`。示例里没有 Token。
 
 2026-11-18 19:29 已允许把这 7 个技能源码公开进仓库。样例 HTML 没有打进发布包。
 
@@ -64,6 +64,12 @@ Invoke-RestMethod -Method Post -Headers $headers -ContentType "application/json"
 - creation-engine：`3dplay` 规则、校验脚本、词表和 `img2threejs`。
 - grill-me：`grilling` 技能。
 - zdog 官方 npm 包 1.1.3 没有单独的 LICENSE 文件。dist 文件头写的是 MIT，Copyright 2020 Metafizzy。
+
+## 安装和当前状态
+
+`deploy/studio-lifecycle.sh` 只操作 studio：`prepare`、`start`、`health`、`gate`、`rollback`。`enable` 会拒绝，直到部署者按本包新的 trusted hash 重签六项门禁。不要沿用 r5 的签署。反代片段是 `deploy/caddy-studio.fragment`，用 `deploy/validate-studio-caddy.sh` 检查，不要改阅读器那一份。
+
+Studio 的 api 和 worker 共用 `studio-data` 组，目录是 `2770`，unit 的 `UMask=0007`。它们不加入 `reader-data`，避免得到 `/var/lib/reader` 的组写权限。若 `/etc/reader/owners.json` 已存在，prepare 只给这两个用户加读 ACL，不改原来的 `640`。模型密钥只在 worker 环境里，进程交给 gateway 的标准输入后就从自己的环境去掉，再启动 bwrap。取消不会把已经取消的任务写成 ready。总时限默认 600 秒、硬上限 900 秒；产物没有更新时默认 180 秒、硬上限 300 秒，超时会停掉整个进程组。
 
 ## 回滚
 

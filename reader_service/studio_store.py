@@ -47,12 +47,15 @@ class StudioStore:
     def __init__(self, settings):
         self.s=settings
         self.root=settings.data
-        self.root.mkdir(mode=0o700, exist_ok=True)
+        self.root.mkdir(mode=0o2770, exist_ok=True)
         self.dbpath=self.root/'studio.sqlite3'
         with self.db() as db:
+            db.execute('PRAGMA journal_mode=DELETE')
             db.execute('''CREATE TABLE IF NOT EXISTS jobs(
                 id TEXT PRIMARY KEY, owner TEXT, skill TEXT, brief TEXT,
                 status TEXT, error TEXT, created REAL, updated REAL, review TEXT)''')
+        if self.dbpath.exists():
+            os.chmod(self.dbpath, 0o660)
 
     def db(self):
         conn=sqlite3.connect(self.dbpath, timeout=5)
@@ -106,13 +109,29 @@ class StudioStore:
             row=db.execute("SELECT * FROM jobs WHERE status='queued' ORDER BY created LIMIT 1").fetchone()
             if row is None:
                 return None
-            db.execute("UPDATE jobs SET status='running', updated=? WHERE id=? AND status='queued'",(time.time(), row['id']))
+            cur=db.execute("UPDATE jobs SET status='running', updated=? WHERE id=? AND status='queued'",(time.time(), row['id']))
+            if cur.rowcount!=1:
+                return None
         return dict(row)
 
     def finish(self, job, status, error='', review=''):
         with self.db() as db:
             db.execute('UPDATE jobs SET status=?, error=?, review=?, updated=? WHERE id=?',
                        (status, error, review, time.time(), job))
+
+    def finish_if_running(self, job, status, error='', review=''):
+        """Do not let a late success overwrite cancel."""
+        return self.finish_if_status(job, 'running', status, error, review)
+
+    def finish_if_status(self, job, expected, status, error='', review=''):
+        with self.db() as db:
+            cur=db.execute('UPDATE jobs SET status=?, error=?, review=?, updated=? WHERE id=? AND status=?',
+                           (status, error, review, time.time(), job, expected))
+            return cur.rowcount==1
+
+    def recover_orphans(self):
+        with self.db() as db:
+            db.execute("UPDATE jobs SET status='failed', error='studio_worker_restarted', updated=? WHERE status='running'", (time.time(),))
 
     def cancel(self, owner, job):
         row=self.get(owner, job)
