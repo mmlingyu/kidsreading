@@ -1,0 +1,115 @@
+"""Reader homepage import: local job, bilingual book, harness skill prompt."""
+from __future__ import annotations
+
+import asyncio
+import json
+import shutil
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+import quality_review  # noqa: E402
+import reader_imports  # noqa: E402
+import studio  # noqa: E402
+import users  # noqa: E402
+
+EXAMPLE = ROOT / "skills" / "adventure-reader" / "references" / "example-book.json"
+
+
+class ReaderImportTests(unittest.TestCase):
+    def setUp(self):
+        self._projects = studio.PROJECTS_DIR
+        self._users = users.USERS_DIR
+        self.tmp = tempfile.TemporaryDirectory()
+        root = Path(self.tmp.name)
+        users.configure(users_dir=root / "users", secret="reader-import-test")
+        studio.configure(projects_dir=root / "studio")
+
+    def tearDown(self):
+        studio.configure(projects_dir=self._projects)
+        users.configure(users_dir=self._users)
+        self.tmp.cleanup()
+
+    def test_short_text_is_refused(self):
+        with self.assertRaises(reader_imports.ReaderImportError):
+            reader_imports.parse_import({"source": "text", "text": "too short"})
+
+    def test_link_must_be_http(self):
+        with self.assertRaises(reader_imports.ReaderImportError):
+            reader_imports.parse_import({"source": "url", "url": "javascript:alert(1)"})
+
+    def test_start_writes_source_and_skill_prompt(self):
+        async def start(project_id):
+            studio.update_status(project_id, "queued", "runabc12345")
+            return {"id": "runabc12345", "status": "queued", "progress": {"phase": "queued", "detail": ""}}
+
+        job = asyncio.run(reader_imports.start_import({
+            "source": "text",
+            "age": "4-6",
+            "text": "A child keeps a small tree house behind the old school and counts snacks at night.",
+        }, start))
+        self.assertEqual(job["status"], "running")
+        self.assertEqual(job["label"], "读材料")
+        source = studio.PROJECTS_DIR / job["id"] / "assets" / "source.txt"
+        self.assertIn("4–6 岁", source.read_text(encoding="utf-8"))
+        self.assertIn("tree house", source.read_text(encoding="utf-8"))
+        prompt = studio.agent_prompt(studio.get_project(job["id"]))
+        self.assertTrue(prompt.startswith("/adventure-reader\n"))
+        self.assertIn("assets/source.txt", prompt)
+        self.assertIn("book.json", prompt)
+        ids = [item["id"] for item in studio.module_list()]
+        self.assertNotIn("adventure-reader", ids)
+
+    def test_ready_job_returns_the_book_only_for_reader_projects(self):
+        async def start(project_id):
+            studio.update_status(project_id, "queued", "runabc12345")
+            return {"id": "runabc12345", "status": "queued", "progress": {"phase": "build", "detail": "改写中"}}
+
+        job = asyncio.run(reader_imports.start_import({
+            "source": "url",
+            "url": "https://example.com/story",
+            "age": "8-12",
+        }, start))
+        copied = studio.PROJECTS_DIR / job["id"] / "outputs" / "book.json"
+        shutil.copyfile(EXAMPLE, copied)
+        studio.update_status(job["id"], "completed", "runabc12345")
+
+        def get_run(run_id):
+            self.assertEqual(run_id, "runabc12345")
+            return {"id": run_id, "status": "completed", "progress": {"phase": "completed", "detail": ""}}
+
+        ready = reader_imports.public_job(job["id"], get_run)
+        self.assertEqual(ready["status"], "ready")
+        self.assertEqual(ready["book"]["id"], "tree-house-night")
+        self.assertTrue(ready["book"]["chapters"][0]["paragraphs"][0]["zh"])
+
+        other = studio.create_project("text", "网页", "做一个按钮", owner_id=reader_imports.READER_OWNER_ID)
+        self.assertIsNone(reader_imports.public_job(other["id"], get_run))
+
+    def test_local_and_cors(self):
+        self.assertTrue(reader_imports.client_is_local("127.0.0.1"))
+        self.assertFalse(reader_imports.client_is_local("10.1.2.3"))
+        headers = reader_imports.cors_headers("http://127.0.0.1:8133")
+        self.assertEqual(headers["Access-Control-Allow-Origin"], "http://127.0.0.1:8133")
+        self.assertEqual(reader_imports.cors_headers("https://example.com"), {})
+
+    def test_quality_review_accepts_example_and_rejects_a_stub(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            outputs = root / "outputs"
+            outputs.mkdir()
+            report = "这是分级改写，不是原文。书 id tree-house-night，一章，填空已通过自测。"
+            (outputs / "report.md").write_text(report, encoding="utf-8")
+            shutil.copyfile(EXAMPLE, outputs / "book.json")
+            project = {"id": "readerbook1", "module": "adventure-reader", "brief": "树屋"}
+            passed = quality_review.review_project(project, root)
+            self.assertTrue(passed["passed"], passed["errors"])
+            (outputs / "book.json").write_text(json.dumps({"id": "nope"}), encoding="utf-8")
+            failed = quality_review.review_project(project, root)
+            self.assertFalse(failed["passed"])
+            self.assertTrue(any("章节" in item or "book" in item for item in failed["errors"]))

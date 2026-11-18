@@ -1,0 +1,318 @@
+"""Persistent per-user creative library for reuse across Studio modules.
+
+Completed project outputs are copied under data/library/{user_id}/ and tagged
+with a kind so later animation / Zdog / game projects can pick compatible files.
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+import mimetypes
+import re
+import secrets
+import time
+from pathlib import Path
+from typing import Iterable, Optional
+
+BASE_DIR = Path(__file__).resolve().parent
+LIBRARY_DIR = BASE_DIR / "data" / "library"
+
+ID_RE = re.compile(r"^[A-Za-z0-9_-]{8,32}$")
+MAX_ITEM_BYTES = 20 * 1024 * 1024
+MAX_LIBRARY_BYTES = 200 * 1024 * 1024
+SKIP_SUFFIXES = {".md", ".txt", ".py", ".yml", ".yaml", ".log"}
+SKIP_NAMES = {"manifest.json", "report.md", "task.md"}
+IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+
+KIND_LABELS = {
+    "character": "角色图",
+    "reference": "参考图",
+    "spine": "Spine 动画",
+    "model-3d": "伪 3D / 三维",
+    "scene": "场景",
+    "html": "网页作品",
+}
+
+KIND_COMPAT = {
+    "character": ["animation", "zdog", "colorfigures", "game", "style-image", "exhibit-card", "knowledge-travel"],
+    "reference": ["style-image", "zdog", "colorfigures", "game", "exhibit-card", "knowledge-travel"],
+    "spine": ["animation"],
+    "model-3d": ["zdog", "colorfigures"],
+    "scene": ["game", "knowledge-travel"],
+    "html": ["text", "exhibit-card", "knowledge-travel"],
+}
+
+
+class LibraryError(ValueError):
+    pass
+
+
+def configure(*, library_dir: Optional[Path] = None) -> None:
+    global LIBRARY_DIR
+    LIBRARY_DIR = Path(library_dir) if library_dir is not None else BASE_DIR / "data" / "library"
+    LIBRARY_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _new_id() -> str:
+    return secrets.token_urlsafe(8)[:11]
+
+
+def _safe_name(name: str) -> str:
+    stem = Path(name or "asset").name
+    stem = re.sub(r"[^A-Za-z0-9._\-\u4e00-\u9fff]+", "_", stem)
+    return stem[:120] or "asset"
+
+
+def _user_dir(user_id: str) -> Path:
+    if not ID_RE.match(user_id or ""):
+        raise LibraryError("用户 ID 非法")
+    path = LIBRARY_DIR / user_id
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _item_dir(user_id: str, item_id: str) -> Path:
+    if not ID_RE.match(item_id or ""):
+        raise LibraryError("资产 ID 非法")
+    return _user_dir(user_id) / item_id
+
+
+def classify(module: str, filename: str) -> Optional[str]:
+    name = Path(filename or "").name
+    lower = name.lower()
+    suffix = Path(lower).suffix
+    if not name or name.startswith("_") or lower in SKIP_NAMES or suffix in SKIP_SUFFIXES:
+        return None
+    if suffix in {".json", ".atlas"}:
+        return "spine"
+    if suffix == ".blend":
+        return "scene"
+    if suffix in {".html", ".htm"}:
+        if module in {"zdog", "colorfigures"}:
+            return "model-3d"
+        if module == "game":
+            return "scene"
+        if module == "knowledge-travel":
+            return "html"
+        return "html"
+    if suffix not in IMAGE_SUFFIXES:
+        return None
+    if module == "style-image":
+        return "character" if "final" in Path(lower).stem else "reference"
+    if module == "animation":
+        return "spine" if "atlas" in lower else "character"
+    if module == "game":
+        return "scene"
+    return "reference"
+
+
+def is_completed_artifact(module: str, filename: str) -> bool:
+    """Only finished products belong in the user library, not drafts or intermediates."""
+    if classify(module, filename) is None:
+        return False
+    stem = Path(filename or "").stem.lower()
+    suffix = Path(filename or "").suffix.lower()
+    if any(tag in stem for tag in ("draft", "tmp", "temp", "step-", "round", "iter")):
+        return False
+    if suffix in {".html", ".htm", ".json", ".atlas", ".blend"}:
+        return True
+    if suffix not in IMAGE_SUFFIXES:
+        return False
+    if "final" in stem or "preview" in stem:
+        return True
+    if module == "animation":
+        return True
+    if module == "game":
+        return True
+    return False
+
+
+def public_item(item: dict) -> dict:
+    kind = item.get("kind") or "reference"
+    return {
+        "id": item["id"],
+        "kind": kind,
+        "kind_label": KIND_LABELS.get(kind, kind),
+        "title": item.get("title") or item.get("filename"),
+        "filename": item["filename"],
+        "content_type": item.get("content_type") or "application/octet-stream",
+        "size": item.get("size", 0),
+        "source_project_id": item.get("source_project_id", ""),
+        "source_module": item.get("source_module", ""),
+        "compatible_modules": item.get("compatible_modules") or KIND_COMPAT.get(kind, []),
+        "created": item.get("created", 0),
+        "page_id": item.get("page_id", ""),
+        "preview_url": f"/api/library/{item['id']}/file",
+        "image": Path(item.get("filename") or "").suffix.lower() in IMAGE_SUFFIXES,
+    }
+
+
+def _read_meta(path: Path) -> Optional[dict]:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def get_item(user_id: str, item_id: str) -> Optional[dict]:
+    meta = _item_dir(user_id, item_id) / "meta.json"
+    if not meta.exists():
+        return None
+    return _read_meta(meta)
+
+
+def list_items(
+    user_id: str,
+    *,
+    kind: str = "",
+    module: str = "",
+    allowed_suffixes: Optional[set[str]] = None,
+) -> list[dict]:
+    root = LIBRARY_DIR / user_id
+    if not ID_RE.match(user_id or "") or not root.exists():
+        return []
+    items: list[dict] = []
+    for path in root.glob("*/meta.json"):
+        item = _read_meta(path)
+        if not item:
+            continue
+        if kind and item.get("kind") != kind:
+            continue
+        compat = item.get("compatible_modules") or KIND_COMPAT.get(item.get("kind"), [])
+        if module and module not in compat:
+            continue
+        suffix = Path(item.get("filename") or "").suffix.lower()
+        if allowed_suffixes is not None and suffix not in allowed_suffixes:
+            continue
+        items.append(public_item(item))
+    items.sort(key=lambda row: row.get("created", 0), reverse=True)
+    return items
+
+
+def grouped_items(user_id: str, **kwargs) -> dict:
+    groups: dict[str, list] = {key: [] for key in KIND_LABELS}
+    for item in list_items(user_id, **kwargs):
+        groups.setdefault(item["kind"], []).append(item)
+    return {
+        "kinds": [
+            {"id": key, "label": KIND_LABELS[key], "items": groups.get(key, [])}
+            for key in KIND_LABELS
+            if groups.get(key)
+        ],
+        "total": sum(len(v) for v in groups.values()),
+    }
+
+
+def _library_size(user_id: str) -> int:
+    root = LIBRARY_DIR / user_id
+    if not root.exists():
+        return 0
+    return sum(path.stat().st_size for path in root.rglob("*") if path.is_file())
+
+
+def add_file(
+    user_id: str,
+    filename: str,
+    data: bytes,
+    *,
+    module: str = "",
+    title: str = "",
+    project_id: str = "",
+    page_id: str = "",
+    content_type: str = "",
+) -> Optional[dict]:
+    if not data:
+        return None
+    kind = classify(module, filename)
+    if kind is None:
+        return None
+    if len(data) > MAX_ITEM_BYTES:
+        raise LibraryError("单个资产不能超过 20MB")
+    if _library_size(user_id) + len(data) > MAX_LIBRARY_BYTES:
+        raise LibraryError("个人资产库已满（200MB）")
+    digest = hashlib.sha256(data).hexdigest()
+    root = _user_dir(user_id)
+    for path in root.glob("*/meta.json"):
+        meta = _read_meta(path)
+        if meta and meta.get("sha256") == digest:
+            return public_item(meta)
+    item_id = _new_id()
+    while _item_dir(user_id, item_id).exists():
+        item_id = _new_id()
+    safe = _safe_name(filename)
+    folder = _item_dir(user_id, item_id)
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / safe).write_bytes(data)
+    mime = content_type or mimetypes.guess_type(safe)[0] or "application/octet-stream"
+    item = {
+        "id": item_id,
+        "owner_id": user_id,
+        "kind": kind,
+        "title": (title or Path(safe).stem)[:120],
+        "filename": safe,
+        "content_type": mime,
+        "size": len(data),
+        "sha256": digest,
+        "source_project_id": project_id,
+        "source_module": module,
+        "compatible_modules": list(KIND_COMPAT.get(kind, [])),
+        "created": time.time(),
+        "page_id": page_id or "",
+    }
+    (folder / "meta.json").write_text(
+        json.dumps(item, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    return public_item(item)
+
+
+def harvest_outputs(
+    user_id: str,
+    project_id: str,
+    module: str,
+    title: str,
+    outputs_dir: Path,
+    page_id: str = "",
+) -> list[dict]:
+    if not user_id or not outputs_dir.exists():
+        return []
+    added: list[dict] = []
+    for path in sorted(outputs_dir.iterdir()):
+        if not path.is_file():
+            continue
+        if not is_completed_artifact(module, path.name):
+            continue
+        try:
+            item = add_file(
+                user_id,
+                path.name,
+                path.read_bytes(),
+                module=module,
+                title=title,
+                project_id=project_id,
+                page_id=page_id,
+            )
+        except LibraryError:
+            continue
+        if item:
+            added.append(item)
+    return added
+
+
+def read_file(user_id: str, item_id: str) -> tuple[dict, bytes]:
+    item = get_item(user_id, item_id)
+    if item is None:
+        raise LibraryError("资产不存在")
+    path = _item_dir(user_id, item_id) / item["filename"]
+    if not path.exists():
+        raise LibraryError("资产文件缺失")
+    return item, path.read_bytes()
+
+
+def load_files(user_id: str, item_ids: Iterable[str]) -> list[tuple[str, bytes, str]]:
+    payload = []
+    for item_id in item_ids:
+        item, data = read_file(user_id, str(item_id))
+        payload.append(
+            (item["filename"], data, item.get("content_type") or "application/octet-stream")
+        )
+    return payload

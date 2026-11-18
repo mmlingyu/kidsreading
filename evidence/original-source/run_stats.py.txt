@@ -1,0 +1,203 @@
+"""Run timing / token projection and robust per-skill estimates."""
+from __future__ import annotations
+
+import math
+import time
+
+import studio
+import task_specs
+
+USAGE_KEYS = (
+    "inputTokens",
+    "outputTokens",
+    "totalTokens",
+    "cacheReadTokens",
+    "reasoningTokens",
+)
+
+
+def empty_usage() -> dict:
+    return {key: 0 for key in USAGE_KEYS} | {"steps": 0, "by_model": {}}
+
+
+def _as_int(value) -> int:
+    try:
+        return max(0, int(value or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def format_token_count(count: int) -> str:
+    n = max(0, int(count or 0))
+    if n >= 1_000_000:
+        text = f"{n / 1_000_000:.1f}".rstrip("0").rstrip(".")
+        return f"{text}M"
+    if n >= 1_000:
+        text = f"{n / 1_000:.1f}".rstrip("0").rstrip(".")
+        return f"{text}k"
+    return str(n)
+
+
+def format_usage_label(usage: dict | None) -> str:
+    data = usage or {}
+    input_tokens = _as_int(data.get("inputTokens"))
+    output_tokens = _as_int(data.get("outputTokens"))
+    cache_tokens = _as_int(data.get("cacheReadTokens"))
+    total_tokens = _as_int(data.get("totalTokens"))
+    if not any((input_tokens, output_tokens, cache_tokens, total_tokens)):
+        return "Token 0"
+    parts = [
+        f"输入 {format_token_count(input_tokens)}",
+        f"输出 {format_token_count(output_tokens)}",
+    ]
+    if cache_tokens:
+        parts.append(f"缓存 {format_token_count(cache_tokens)}")
+    parts.append(f"合计 {format_token_count(total_tokens or input_tokens + output_tokens)}")
+    return " · ".join(parts)
+
+
+def extract_assistant_usage(payload: dict | None, event_type: str = "") -> dict | None:
+    if "assistant/message" not in (event_type or ""):
+        return None
+    event = (payload or {}).get("event") if isinstance(payload, dict) else None
+    data = event.get("data") if isinstance(event, dict) else None
+    usage = data.get("usage") if isinstance(data, dict) else None
+    if not isinstance(usage, dict):
+        return None
+    model = ""
+    source = data.get("source") if isinstance(data, dict) else None
+    if isinstance(source, dict):
+        model = str(source.get("model") or "").strip()
+    return {
+        "inputTokens": _as_int(usage.get("inputTokens")),
+        "outputTokens": _as_int(usage.get("outputTokens")),
+        "totalTokens": _as_int(usage.get("totalTokens")),
+        "cacheReadTokens": _as_int(usage.get("cacheReadTokens")),
+        "reasoningTokens": _as_int(usage.get("reasoningTokens")),
+        "model": model,
+    }
+
+
+def apply_usage_delta(target: dict, delta: dict | None) -> dict:
+    usage = target if isinstance(target, dict) else empty_usage()
+    for key in USAGE_KEYS:
+        usage.setdefault(key, 0)
+        usage[key] = _as_int(usage.get(key)) + _as_int((delta or {}).get(key))
+    usage["steps"] = _as_int(usage.get("steps")) + (1 if delta else 0)
+    by_model = usage.setdefault("by_model", {})
+    model = str((delta or {}).get("model") or "").strip() or "unknown"
+    bucket = by_model.setdefault(model, {key: 0 for key in USAGE_KEYS})
+    for key in USAGE_KEYS:
+        bucket[key] = _as_int(bucket.get(key)) + _as_int((delta or {}).get(key))
+    return usage
+
+
+def usage_from_events(events: list | None) -> dict:
+    totals = empty_usage()
+    for event in events or []:
+        if not isinstance(event, dict):
+            continue
+        if event.get("kind") == "notification":
+            delta = extract_assistant_usage(
+                event.get("payload"),
+                str(event.get("event_type") or ""),
+            )
+            if delta:
+                apply_usage_delta(totals, delta)
+    return totals
+
+
+def public_usage(run: dict) -> dict:
+    usage = run.get("usage")
+    if not isinstance(usage, dict) or not any(
+        _as_int(usage.get(key)) for key in USAGE_KEYS
+    ):
+        usage = usage_from_events(run.get("events"))
+    return {
+        "usage": usage,
+        "usage_label": format_usage_label(usage),
+    }
+
+
+def _duration(run: dict) -> float:
+    if run.get("duration_seconds") is not None:
+        return max(0.0, float(run["duration_seconds"]))
+    if run.get("status") in {
+        "completed",
+        "failed",
+        "blocked",
+        "cancelled",
+        "interrupted",
+        "review_failed",
+        "awaiting_approval",
+    }:
+        return max(0.0, float(run.get("updated", 0)) - float(run.get("created", 0)))
+    return max(0.0, time.time() - float(run.get("created", time.time())))
+
+
+def public_timing(run: dict) -> dict:
+    seconds = _duration(run)
+    return {
+        "duration_seconds": round(seconds, 1),
+        "duration_label": format_duration(seconds),
+        "started_at": run.get("started_at") or run.get("created"),
+        "finished_at": run.get("finished_at"),
+        "phase_durations": run.get("phase_durations") or {},
+    }
+
+
+def format_duration(seconds: float) -> str:
+    total = max(0, int(round(seconds)))
+    if total < 60:
+        return f"{total} 秒"
+    hours, remainder = divmod(total, 3600)
+    minutes = remainder // 60
+    return f"{hours} 小时 {minutes} 分" if hours else f"{minutes} 分钟"
+
+
+def _percentile(values: list[float], quantile: float) -> float:
+    if not values:
+        return 0.0
+    ordered = sorted(values)
+    position = (len(ordered) - 1) * quantile
+    low = math.floor(position)
+    high = math.ceil(position)
+    if low == high:
+        return ordered[low]
+    return ordered[low] * (high - position) + ordered[high] * (position - low)
+
+
+def estimate(module: str, track: str, runs: list[dict]) -> dict:
+    key = task_specs.spec_key(module, track)
+    successful: list[float] = []
+    attempted = 0
+    for run in runs:
+        project = studio.get_project(str(run.get("project_id") or ""))
+        if not project or task_specs.spec_key(project) != key:
+            continue
+        if run.get("status") not in {"queued", "running"}:
+            attempted += 1
+        if run.get("status") == "completed":
+            seconds = _duration(run)
+            if seconds >= 5:
+                successful.append(seconds)
+    spec = task_specs.get_spec(module, track)
+    if len(successful) >= 3:
+        low = _percentile(successful, 0.5)
+        high = _percentile(successful, 0.8)
+        source = "history"
+    else:
+        low, high = (minutes * 60 for minutes in spec["estimate"])
+        source = "default"
+    success_rate = (
+        round(len(successful) / attempted * 100) if attempted else None
+    )
+    return {
+        "low_seconds": round(low),
+        "high_seconds": round(max(low, high)),
+        "label": f"{format_duration(low)}–{format_duration(max(low, high))}",
+        "sample_count": len(successful),
+        "attempt_count": attempted,
+        "success_rate": success_rate,
+        "source": source,
+    }

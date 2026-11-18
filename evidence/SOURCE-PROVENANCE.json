@@ -1,0 +1,10 @@
+{
+  "app.js": {
+    "sha256": "ab550a9a6984c4392e3c9285f66c0b9aef5f07c464ff6f9b2c6295f59f1a482b",
+    "origin": "authorized WorkBuddy app/app.js or app/data/import-book.js snapshot"
+  },
+  "import-book.js": {
+    "sha256": "c809e7548728eb11eb2bb5ace6c4002f927660592b50945da4e0c30ac4dce3d4",
+    "origin": "authorized WorkBuddy app/app.js or app/data/import-book.js snapshot"
+  }
+}

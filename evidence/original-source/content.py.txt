@@ -1,0 +1,86 @@
+"""Content analysis for shared media.
+
+Phase 1 supports HTML only: extract a title, a core summary, a heading outline
+and a few stats/feature flags so the chat card can render a rich, type-aware
+preview before the actual content is opened.
+"""
+from __future__ import annotations
+
+import re
+from typing import List
+
+from bs4 import BeautifulSoup
+
+_WS_RE = re.compile(r"\s+")
+
+
+def _clean(text: str) -> str:
+    return _WS_RE.sub(" ", (text or "").replace("\ufffd", "")).strip()
+
+
+def analyze_html(html: str) -> dict:
+    soup = BeautifulSoup(html or "", "html.parser")
+
+    # Title: <title> -> first heading -> fallback.
+    title = ""
+    if soup.title and soup.title.string:
+        title = _clean(soup.title.string)
+    if not title:
+        h = soup.find(["h1", "h2"])
+        if h:
+            title = _clean(h.get_text())
+
+    # Heading outline (structure at a glance).
+    outline: List[dict] = []
+    for h in soup.find_all(["h1", "h2", "h3"]):
+        t = _clean(h.get_text())
+        if t:
+            outline.append({"level": int(h.name[1]), "text": t[:80]})
+        if len(outline) >= 8:
+            break
+
+    # Core summary: meta description -> first substantial paragraph -> body text.
+    summary = ""
+    desc = soup.find("meta", attrs={"name": "description"})
+    if desc and desc.get("content"):
+        summary = _clean(desc["content"])
+    if not summary:
+        for tag in soup.find_all(["p", "li", "blockquote"]):
+            t = _clean(tag.get_text())
+            if len(t) >= 20:
+                summary = t
+                break
+
+    # Text metrics, excluding script/style noise.
+    body = BeautifulSoup(html or "", "html.parser")
+    for bad in body(["script", "style", "noscript"]):
+        bad.decompose()
+    body_text = _clean(body.get_text(" "))
+    if not summary:
+        summary = body_text[:160]
+    summary = summary[:220]
+
+    kind = "spine" if "spine-player" in (html or "") else "html"
+    features = {
+        "canvas": bool(soup.find("canvas")),
+        "form": bool(soup.find("form")),
+        "media": bool(soup.find(["video", "audio", "svg"])),
+        "images": len(soup.find_all("img")),
+    }
+    stats = {
+        "words": len(body_text.split()),
+        "chars": len(body_text),
+        "headings": len(outline),
+        "interactive": len(soup.find_all(["button", "input", "select", "textarea"])),
+        "links": len(soup.find_all("a")),
+        "scripts": len(soup.find_all("script")),
+    }
+
+    return {
+        "title": title[:120] or "未命名 HTML",
+        "summary": summary,
+        "outline": outline,
+        "stats": stats,
+        "features": features,
+        "kind": kind,
+    }

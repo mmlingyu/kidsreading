@@ -1,0 +1,11 @@
+[Unit]
+Description=Reader jobs dedicated 512MiB hard-cap filesystem
+Before=reader-api.service reader-worker.service
+[Mount]
+What=/var/lib/reader-storage/jobs.ext4
+Where=/var/lib/reader/jobs
+Type=ext4
+Options=loop,nodev,nosuid,noexec
+TimeoutSec=30
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,45 @@
+[Unit]
+Description=Reader Phase1 single durable isolated worker
+After=network-online.target var-lib-reader-jobs.mount
+BindsTo=var-lib-reader-jobs.mount
+Wants=network-online.target
+[Service]
+Type=simple
+User=reader-worker
+Group=reader-data
+UMask=0007
+WorkingDirectory=/opt/reader/current
+EnvironmentFile=/etc/reader/worker.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/opt/reader-runtime/bin/python -m reader_service.worker
+OOMPolicy=kill
+Restart=on-failure
+RestartSec=5
+KillMode=control-group
+TimeoutStopSec=15
+SendSIGKILL=yes
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=false
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+# Bubblewrap requires these namespaces; no broad @system-service syscall filter.
+RestrictNamespaces=user pid net ipc uts mnt cgroup
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+CapabilityBoundingSet=
+ReadWritePaths=/var/lib/reader
+ReadOnlyPaths=/opt/reader-runtime-cache-0.2.2rc2
+MemoryHigh=640M
+MemoryMax=768M
+MemorySwapMax=0
+CPUQuota=100%
+TasksMax=64
+LimitNOFILE=256
+LimitFSIZE=32M
+LimitCORE=0
+[Install]
+WantedBy=multi-user.target

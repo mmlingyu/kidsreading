@@ -1,0 +1,1268 @@
+"""Creation Studio project storage and skill task packaging.
+
+The FastAPI app cannot invoke Cursor personal skills or Blender MCP directly.
+Instead it collects the exact inputs each workflow needs and emits a durable,
+standardized project package that can be handed to the corresponding skill.
+Generated HTML previews can later be imported into the existing share system.
+"""
+from __future__ import annotations
+
+import json
+import hashlib
+import ipaddress
+import mimetypes
+import re
+import secrets
+import shutil
+import socket
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+from pathlib import Path
+from typing import Iterable, Optional
+
+import task_specs
+
+BASE_DIR = Path(__file__).resolve().parent
+PROJECTS_DIR = BASE_DIR / "data" / "studio"
+PROJECTS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def configure(*, projects_dir: Optional[Path] = None) -> None:
+    global PROJECTS_DIR
+    PROJECTS_DIR = Path(projects_dir) if projects_dir is not None else BASE_DIR / "data" / "studio"
+    PROJECTS_DIR.mkdir(parents=True, exist_ok=True)
+
+MAX_ASSET_BYTES = 20 * 1024 * 1024
+MAX_PROJECT_BYTES = 80 * 1024 * 1024
+MAX_REFERENCE_BYTES = 8 * 1024 * 1024
+MAX_REFERENCE_URLS = 8
+PROJECT_ID_RE = re.compile(r"^[A-Za-z0-9_-]{8,32}$")
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
+REFERENCE_EXTENSIONS = {".html", ".htm", ".md", ".txt"}
+ALLOWED_EXTENSIONS = {
+    "text": REFERENCE_EXTENSIONS | IMAGE_EXTENSIONS,
+    "zdog": {".html", ".htm", ".md", ".txt", ".png", ".jpg", ".jpeg", ".webp"},
+    "colorfigures": {".html", ".htm", ".md", ".txt", ".png", ".jpg", ".jpeg", ".webp"},
+    "style-image": REFERENCE_EXTENSIONS | IMAGE_EXTENSIONS,
+    "animation": REFERENCE_EXTENSIONS | IMAGE_EXTENSIONS | {".json", ".atlas"},
+    "game": REFERENCE_EXTENSIONS | IMAGE_EXTENSIONS | {".blend"},
+    "exhibit-card": REFERENCE_EXTENSIONS | IMAGE_EXTENSIONS,
+    "knowledge-travel": REFERENCE_EXTENSIONS | IMAGE_EXTENSIONS,
+    "wrong-answer": REFERENCE_EXTENSIONS | IMAGE_EXTENSIONS,
+    "idea-watch": REFERENCE_EXTENSIONS | IMAGE_EXTENSIONS | {".csv", ".json"},
+    "game-port": REFERENCE_EXTENSIONS | IMAGE_EXTENSIONS | {".zip"},
+    "adventure-reader": REFERENCE_EXTENSIONS | {".json"},
+}
+
+MODULES = {
+    "text": {
+        "id": "text",
+        "title": "文本构建",
+        "subtitle": "从一句想法到可交互 HTML",
+        "icon": "✦",
+        "color": "#68a8ff",
+        "skill": "html-builder",
+        "mode": "harness",
+        "accept": ".html,.md,.txt,.png,.jpg,.jpeg,.webp",
+        "steps": ["描述目标与用户", "拆解页面结构", "定义交互", "生成 HTML", "安全检测并分享"],
+    },
+    "exhibit-card": {
+        "id": "exhibit-card",
+        "title": "馆藏卡片",
+        "subtitle": "预览卡 + 标签，点击放大到原文 HTML",
+        "icon": "▣",
+        "color": "#c8a35a",
+        "skill": "exhibit-card",
+        "mode": "harness",
+        "accept": ".html,.md,.txt,.png,.jpg,.jpeg,.webp",
+        "steps": ["列出藏品与等级", "写卡面预览", "把原文放进卡片", "FLIP 放大打开", "沙箱预览并分享"],
+    },
+    "zdog": {
+        "id": "zdog",
+        "title": "Zdog 伪 3D",
+        "subtitle": "圆润扁平的 canvas 伪三维插画",
+        "icon": "◕",
+        "color": "#c45ad3",
+        "skill": "zdog",
+        "mode": "harness",
+        "accept": ".html,.md,.txt,.png,.jpg,.jpeg,.webp",
+        "steps": ["描述主体与配色", "用 Anchor 搭形体", "加旋转与拖拽", "内联 Zdog 生成 HTML", "沙箱预览并分享"],
+    },
+    "colorfigures": {
+        "id": "colorfigures",
+        "title": "彩墨物件",
+        "subtitle": "手绘等轴测机器，可转圈、透视内部、按按钮",
+        "icon": "◈",
+        "color": "#e08a3a",
+        "skill": "colorfigures",
+        "mode": "harness",
+        "accept": ".html,.md,.txt,.png,.jpg,.jpeg,.webp",
+        "steps": ["写清真实物件怎么工作", "对照 toaster 写零件", "做出可按的动作", "build.py 打成单页", "沙箱转一圈再分享"],
+    },
+    "style-image": {
+        "id": "style-image",
+        "title": "风格图像生成",
+        "subtitle": "spDesign 头像 / DTdesign 全身角色",
+        "icon": "◉",
+        "color": "#e66bb3",
+        "skill": "spdesign / dtdesign",
+        "mode": "harness",
+        "accept": "image/png,image/jpeg,image/webp",
+        "steps": ["选择角色体系", "填写身份与视觉意图", "准备参考资产", "Harness 技能生成", "检查并导入作品"],
+    },
+    "animation": {
+        "id": "animation",
+        "title": "图像动画生成",
+        "subtitle": "将角色图变成 Spine 骨骼动画",
+        "icon": "◆",
+        "color": "#f0a64a",
+        "skill": "spine-animation",
+        "mode": "harness",
+        "accept": "image/png,image/jpeg,image/webp,.json,.atlas",
+        "steps": ["上传角色或分层部件", "指定动作", "拆分与定位", "构建骨骼动画", "生成 preview.html 并分享"],
+    },
+    "game": {
+        "id": "game",
+        "title": "游戏 DIY",
+        "subtitle": "从场景构想到可游历 3D 原型",
+        "icon": "⬡",
+        "color": "#63d5b4",
+        "skill": "3d-game-dev",
+        "mode": "harness",
+        "accept": "image/png,image/jpeg,image/webp,.blend",
+        "steps": ["限定小场景范围", "锁定目标图", "Blender 搭建可行走场景", "加入一个交互", "Dream-loop 三轮优化"],
+    },
+    "knowledge-travel": {
+        "id": "knowledge-travel",
+        "title": "知识穿越答题",
+        "subtitle": "可控角色闯关 · 有知识答题 / 无知识场景互动",
+        "icon": "⇄",
+        "color": "#f5a623",
+        "skill": "knowledge-travel",
+        "mode": "harness",
+        "accept": ".html,.md,.txt,.png,.jpg,.jpeg,.webp",
+        "steps": ["定主题与关卡表", "有知识写题 / 无知识配场景互动", "长卷场景与角色控制", "过关门（答题或互动爆发）", "沙箱预览并分享"],
+    },
+    "wrong-answer": {
+        "id": "wrong-answer",
+        "title": "错题讲解动画",
+        "subtitle": "用 ManimGX 把错的一步和正确的一步演成短片",
+        "icon": "▷",
+        "color": "#6e8fd6",
+        "skill": "wrong-answer-anim",
+        "mode": "harness",
+        "accept": ".html,.md,.txt,.png,.jpg,.jpeg,.webp",
+        "steps": ["写下题目和选错的一步", "同一批物件先错后对", "ManimGX 渲染短片", "放进可播放页面", "沙箱里看完"],
+    },
+    "idea-watch": {
+        "id": "idea-watch",
+        "title": "想法定时搜索",
+        "subtitle": "同一想法到点更新原简报；换想法才新建。每人最多 3 条",
+        "icon": "⏱",
+        "color": "#5aa7d4",
+        "skill": "html-builder",
+        "mode": "harness",
+        "accept": ".md,.txt,.html",
+        "steps": ["写下想法", "选择搜索间隔", "检索并写纪要", "首次出简报", "到点对照旧页更新"],
+    },
+    "game-port": {
+        "id": "game-port",
+        "title": "游戏搬家",
+        "subtitle": "把有授权的电脑游戏整理成网页再试玩",
+        "icon": "⌂",
+        "color": "#7ec8e3",
+        "skill": "atb-game-porting",
+        "mode": "harness",
+        "accept": ".zip,.exe,.png,.jpg,.jpeg,.webp",
+        "steps": ["拖进游戏包", "确认自己有权", "整理材料", "机器人搬家", "打开网页玩"],
+    },
+    "adventure-reader": {
+        "id": "adventure-reader",
+        "title": "英语闯关图书",
+        "subtitle": "把正文或链接写成带中英对照的分级书",
+        "icon": "读",
+        "color": "#8fd12f",
+        "skill": "adventure-reader",
+        "mode": "harness",
+        "listed": False,
+        "accept": ".txt,.md,.html",
+        "steps": ["接收正文或链接", "调用 adventure-reader", "校验书稿", "填空自测", "交回阅读页预览"],
+    },
+}
+
+# Playable products sit beside Studio paths. They are not Harness projects.
+PLAY_PRODUCTS = {
+    "valley": {
+        "id": "valley",
+        "title": "我的河谷",
+        "subtitle": "开放世界建造沙盒，登录后用你的名字进自己的河谷",
+        "icon": "🌿",
+        "color": "#84a369",
+        "skill": "creation-engine",
+        "mode": "play",
+        "href": "/valley",
+        "accept": "",
+        "steps": ["进入河谷小院", "采集与搭建", "工坊制作", "热气球看地图", "发明家小屋造物"],
+    },
+}
+
+
+class StudioError(ValueError):
+    pass
+
+
+_LOCAL_HASH_NAV_FIX = """<script data-idealab-file-nav>
+/* Keep in-page links working inside file:// and unique-origin preview frames. */
+document.addEventListener("click",function(event){
+  var link=event.target.closest&&event.target.closest('a[href^="#"]');
+  if(!link)return;
+  var hash=link.getAttribute("href");
+  if(!hash||hash==="#")return;
+  var id;
+  try{id=decodeURIComponent(hash.slice(1));}catch(_){id=hash.slice(1);}
+  var target=document.getElementById(id);
+  if(!target)return;
+  event.preventDefault();
+  target.scrollIntoView({behavior:"smooth",block:"start"});
+},{capture:true});
+</script>"""
+
+
+def make_preview_file_safe(document: str) -> str:
+    """Harden a standalone preview for local file/unique-origin navigation."""
+    html = document or ""
+    if "data-idealab-file-nav" in html:
+        return html
+    if not re.search(r"""<a\b[^>]*\bhref\s*=\s*["']#[^"']+["']""", html, re.I):
+        return html
+    close = re.search(r"</body\s*>", html, re.I)
+    if close:
+        return html[: close.start()] + _LOCAL_HASH_NAV_FIX + "\n" + html[close.start() :]
+    return html + "\n" + _LOCAL_HASH_NAV_FIX
+
+
+def module_list(user=None) -> list[dict]:
+    import curriculum
+
+    owned = curriculum.unlocked_set(user)
+    rows = []
+    for module in MODULES.values():
+        if module.get("listed") is False or module["id"] in {"idea-watch", "game-port"}:
+            continue
+        item = dict(module)
+        needed = curriculum.required_skills(module["id"])
+        ok, reason = curriculum.can_use_module(user, module["id"])
+        item["locked"] = not ok
+        item["lock_reason"] = "" if ok else reason
+        item["required_skills"] = needed
+        item["unlocked_skills"] = [name for name in needed if name in owned]
+        item["quiz_skill"] = next((name for name in needed if name in curriculum.QUIZZES), "")
+        if module["id"] == "style-image":
+            item["task_specs"] = [
+                task_specs.get_spec("style-image", "spdesign"),
+                task_specs.get_spec("style-image", "dtdesign"),
+            ]
+        else:
+            item["task_specs"] = [task_specs.get_spec(module["id"])]
+        rows.append(item)
+    for product in PLAY_PRODUCTS.values():
+        item = dict(product)
+        item["locked"] = False
+        item["lock_reason"] = ""
+        item["required_skills"] = []
+        item["unlocked_skills"] = []
+        item["quiz_skill"] = ""
+        item["task_specs"] = []
+        rows.append(item)
+    return rows
+
+
+def _schedule_hours(value) -> int:
+    try:
+        hours = int(value)
+    except (TypeError, ValueError):
+        hours = 6
+    return hours if hours in {1, 6, 12, 24} else 6
+
+
+def _new_id() -> str:
+    return secrets.token_urlsafe(8)[:11]
+
+
+def _safe_name(name: str) -> str:
+    stem = Path(name or "asset").name
+    stem = re.sub(r"[^A-Za-z0-9._\-\u4e00-\u9fff]+", "_", stem)
+    return stem[:120] or "asset"
+
+
+def _project_dir(project_id: str) -> Path:
+    if not PROJECT_ID_RE.match(project_id or ""):
+        raise StudioError("项目 ID 非法")
+    return PROJECTS_DIR / project_id
+
+
+def user_inputs_snapshot(project: dict) -> dict:
+    """Freeze the user's prompt and other creation inputs for replay / remake."""
+    assets = []
+    for asset in project.get("assets") or []:
+        assets.append(
+            {
+                "name": asset.get("name") or "",
+                "original_name": asset.get("original_name") or asset.get("name") or "",
+                "content_type": asset.get("content_type") or "",
+                "size": int(asset.get("size") or 0),
+                "source_url": asset.get("source_url") or "",
+                "source_type": asset.get("source_type") or "",
+            }
+        )
+    return {
+        "module": project.get("module") or "",
+        "title": project.get("title") or "",
+        "prompt": project.get("brief") or "",
+        "brief": project.get("brief") or "",
+        "track": project.get("track") or "",
+        "animations": project.get("animations") or "",
+        "character_type": project.get("character_type") or "",
+        "anatomy_confirmed": bool(project.get("anatomy_confirmed")),
+        "scene_scope": project.get("scene_scope") or "",
+        "core_interaction": project.get("core_interaction") or "",
+        "schedule_hours": int(project.get("schedule_hours") or 0),
+        "game_slug": project.get("game_slug") or "",
+        "assets": assets,
+        "asset_count": len(assets),
+        "captured_at": time.time(),
+    }
+
+
+def _inputs_markdown(project: dict) -> str:
+    inputs = project.get("user_inputs") or user_inputs_snapshot(project)
+    lines = [
+        f"# 用户输入 · {inputs.get('title') or project.get('id')}",
+        "",
+        f"- 模块：`{inputs.get('module') or ''}`",
+        f"- 轨道：`{inputs.get('track') or '—'}`",
+        "",
+        "## 提示词 / 创作描述",
+        "",
+        inputs.get("prompt") or inputs.get("brief") or "（空）",
+        "",
+    ]
+    if inputs.get("animations"):
+        lines.extend(["## 动作列表", "", str(inputs["animations"]), ""])
+    if inputs.get("character_type"):
+        lines.append(f"- 角色类型：{inputs['character_type']}")
+        lines.append(f"- 解剖确认：{'是' if inputs.get('anatomy_confirmed') else '否'}")
+        lines.append("")
+    if inputs.get("scene_scope") or inputs.get("core_interaction"):
+        lines.extend(
+            [
+                "## 游戏设定",
+                "",
+                f"- 场景范围：{inputs.get('scene_scope') or '—'}",
+                f"- 核心交互：{inputs.get('core_interaction') or '—'}",
+                "",
+            ]
+        )
+    lines.extend(["## 素材", ""])
+    assets = inputs.get("assets") or []
+    if not assets:
+        lines.append("（无）")
+    else:
+        for asset in assets:
+            note = asset.get("source_url") or ""
+            suffix = f" · {note}" if note else ""
+            lines.append(
+                f"- {asset.get('original_name') or asset.get('name')}"
+                f" ({int(asset.get('size') or 0)} bytes){suffix}"
+            )
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _write_project(project: dict) -> None:
+    root = _project_dir(project["id"])
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "assets").mkdir(exist_ok=True)
+    (root / "outputs").mkdir(exist_ok=True)
+    project["user_inputs"] = user_inputs_snapshot(project)
+    (root / "project.json").write_text(
+        json.dumps(project, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    (root / "TASK.md").write_text(_task_markdown(project), encoding="utf-8")
+    (root / "INPUTS.md").write_text(_inputs_markdown(project), encoding="utf-8")
+
+
+def create_project(
+    module: str,
+    title: str,
+    brief: str,
+    track: str = "",
+    animations: str = "",
+    character_type: str = "",
+    anatomy_confirmed: bool = False,
+    scene_scope: str = "",
+    core_interaction: str = "",
+    owner_id: str = "",
+    schedule_hours: int = 6,
+    game_slug: str = "",
+) -> dict:
+    if module not in MODULES:
+        raise StudioError("未知创作模块")
+    import curriculum
+    import users as user_store
+
+    owner = user_store.get_user(owner_id) if owner_id else None
+    allowed, reason = curriculum.can_use_module(owner, module, (track or "").strip())
+    if not allowed:
+        raise StudioError(reason)
+    brief = (brief or "").strip()
+    if not brief:
+        raise StudioError("请描述你想实现的想法")
+    project_id = _new_id()
+    while (PROJECTS_DIR / project_id).exists():
+        project_id = _new_id()
+    now = time.time()
+    project = {
+        "id": project_id,
+        "module": module,
+        "title": (title or "").strip()[:120] or MODULES[module]["title"],
+        "brief": brief[:8000],
+        "track": (track or "").strip()[:40],
+        "animations": (animations or "").strip()[:500],
+        "character_type": (character_type or "").strip().lower()[:40],
+        "anatomy_confirmed": bool(anatomy_confirmed),
+        "scene_scope": (scene_scope or "").strip()[:500],
+        "core_interaction": (core_interaction or "").strip()[:500],
+        "schedule_hours": _schedule_hours(schedule_hours) if module == "idea-watch" else 0,
+        "status": "collecting",
+        "created": now,
+        "updated": now,
+        "assets": [],
+        "outputs": [],
+        "owner_id": (owner_id or "").strip(),
+        "game_slug": (game_slug or "").strip()[:64],
+        "module_info": MODULES[module],
+        "validation": {},
+    }
+    project["validation"] = validate_project(project)
+    _write_project(project)
+    return project
+
+
+def get_project(project_id: str) -> Optional[dict]:
+    try:
+        path = _project_dir(project_id) / "project.json"
+    except StudioError:
+        return None
+    if not path.exists():
+        return None
+    project = json.loads(path.read_text(encoding="utf-8"))
+    project["module_info"] = MODULES.get(project["module"], {})
+    project["validation"] = validate_project(project)
+    if not project.get("user_inputs"):
+        project["user_inputs"] = user_inputs_snapshot(project)
+        try:
+            _write_project(project)
+        except OSError:
+            pass
+    return project
+
+
+def clone_project(
+    source_id: str,
+    owner_id: str,
+    *,
+    copy_assets: bool = True,
+    title: str = "",
+) -> dict:
+    """One-click remake: copy prompt + settings (+ assets) into a new project."""
+    source = get_project(source_id)
+    if source is None:
+        raise StudioError("源项目不存在")
+    owner = (owner_id or "").strip()
+    if not owner:
+        raise StudioError("请先登录后再复刻")
+    source_owner = (source.get("owner_id") or "").strip()
+    if source_owner and source_owner != owner:
+        raise StudioError("只能复刻自己的任务记录")
+    base_title = (title or "").strip() or (source.get("title") or MODULES[source["module"]]["title"])
+    if "复刻" not in base_title:
+        base_title = f"{base_title}（复刻）"
+    project = create_project(
+        source["module"],
+        base_title[:120],
+        source.get("brief") or "",
+        track=source.get("track") or "",
+        animations=source.get("animations") or "",
+        character_type=source.get("character_type") or "",
+        anatomy_confirmed=bool(source.get("anatomy_confirmed")),
+        scene_scope=source.get("scene_scope") or "",
+        core_interaction=source.get("core_interaction") or "",
+        game_slug=source.get("game_slug") or "",
+        owner_id=owner,
+        schedule_hours=source.get("schedule_hours") or 6,
+    )
+    project["cloned_from"] = source_id
+    project["cloned_at"] = time.time()
+    if copy_assets and source.get("assets"):
+        src_assets = _project_dir(source_id) / "assets"
+        dst_assets = _project_dir(project["id"]) / "assets"
+        dst_assets.mkdir(parents=True, exist_ok=True)
+        copied = []
+        total = 0
+        for asset in source["assets"]:
+            name = asset.get("name") or ""
+            src = src_assets / name
+            if not name or not src.is_file():
+                continue
+            data = src.read_bytes()
+            if total + len(data) > MAX_PROJECT_BYTES:
+                break
+            dest_name = name
+            n = 2
+            while (dst_assets / dest_name).exists():
+                stem = Path(name).stem
+                dest_name = f"{stem}-{n}{Path(name).suffix}"
+                n += 1
+            shutil.copy2(src, dst_assets / dest_name)
+            row = dict(asset)
+            row["name"] = dest_name
+            row["size"] = len(data)
+            copied.append(row)
+            total += len(data)
+        project["assets"] = copied
+    project["validation"] = validate_project(project)
+    project["status"] = "ready" if project["validation"]["ready"] else "collecting"
+    project["updated"] = time.time()
+    _write_project(project)
+    return get_project(project["id"]) or project
+
+
+def list_projects(limit: int = 30, owner_id: Optional[str] = None) -> list[dict]:
+    projects = []
+    for path in PROJECTS_DIR.glob("*/project.json"):
+        try:
+            project = json.loads(path.read_text(encoding="utf-8"))
+            project["module_info"] = MODULES.get(project["module"], {})
+            project["validation"] = validate_project(project)
+            if not project.get("user_inputs"):
+                project["user_inputs"] = user_inputs_snapshot(project)
+        except (OSError, json.JSONDecodeError, KeyError):
+            continue
+        if owner_id and project.get("owner_id") != owner_id:
+            continue
+        projects.append(project)
+    projects.sort(key=lambda p: p.get("updated", 0), reverse=True)
+    return projects[:limit]
+
+
+def update_project_config(
+    project_id: str,
+    *,
+    title: Optional[str] = None,
+    brief: Optional[str] = None,
+    track: Optional[str] = None,
+    animations: Optional[str] = None,
+    character_type: Optional[str] = None,
+    anatomy_confirmed: Optional[bool] = None,
+    scene_scope: Optional[str] = None,
+    core_interaction: Optional[str] = None,
+) -> dict:
+    project = get_project(project_id)
+    if project is None:
+        raise StudioError("项目不存在")
+    if project.get("status") in {"queued", "running"}:
+        raise StudioError("项目正在构建，暂时不能修改配置")
+    if title is not None:
+        project["title"] = title.strip()[:120] or MODULES[project["module"]]["title"]
+    if brief is not None:
+        value = brief.strip()
+        if not value:
+            raise StudioError("创作描述不能为空")
+        project["brief"] = value[:8000]
+    if track is not None:
+        value = track.strip()
+        if project["module"] == "style-image" and value not in {"spdesign", "dtdesign"}:
+            raise StudioError("请选择 spDesign 或 DTdesign")
+        project["track"] = value[:40]
+    if animations is not None:
+        project["animations"] = animations.strip()[:500]
+    if character_type is not None:
+        value = character_type.strip().lower()
+        allowed_types = {"human", "quadruped", "bird", "fish", "custom", ""}
+        if value not in allowed_types:
+            raise StudioError("角色类型不支持")
+        project["character_type"] = value
+    if anatomy_confirmed is not None:
+        project["anatomy_confirmed"] = bool(anatomy_confirmed)
+    if scene_scope is not None:
+        if scene_scope.strip() != str(project.get("scene_scope") or ""):
+            project.pop("target_approval", None)
+        project["scene_scope"] = scene_scope.strip()[:500]
+    if core_interaction is not None:
+        if core_interaction.strip() != str(project.get("core_interaction") or ""):
+            project.pop("target_approval", None)
+        project["core_interaction"] = core_interaction.strip()[:500]
+    project["updated"] = time.time()
+    project["validation"] = validate_project(project)
+    project["status"] = "ready" if project["validation"]["ready"] else "collecting"
+    _write_project(project)
+    return project
+
+
+def add_assets(project_id: str, files: Iterable[tuple[str, bytes, str]]) -> dict:
+    project = get_project(project_id)
+    if project is None:
+        raise StudioError("项目不存在")
+    root = _project_dir(project_id)
+    assets_dir = root / "assets"
+    assets_dir.mkdir(exist_ok=True)
+    total = sum(int(a.get("size", 0)) for a in project["assets"])
+    for original_name, data, content_type in files:
+        if not data:
+            continue
+        suffix = Path(original_name or "").suffix.lower()
+        allowed = ALLOWED_EXTENSIONS.get(project["module"], set())
+        if suffix not in allowed:
+            readable = "、".join(sorted(allowed))
+            raise StudioError(f"{project['module_info']['title']} 不接受 {suffix or '无扩展名'} 文件；允许：{readable}")
+        if len(data) > MAX_ASSET_BYTES:
+            raise StudioError("单个素材不能超过 20MB")
+        if total + len(data) > MAX_PROJECT_BYTES:
+            raise StudioError("项目素材总量不能超过 80MB")
+        safe = _safe_name(original_name)
+        candidate = safe
+        n = 2
+        while (assets_dir / candidate).exists():
+            p = Path(safe)
+            candidate = f"{p.stem}-{n}{p.suffix}"
+            n += 1
+        (assets_dir / candidate).write_bytes(data)
+        project["assets"].append(
+            {
+                "name": candidate,
+                "original_name": original_name,
+                "content_type": content_type or "application/octet-stream",
+                "size": len(data),
+            }
+        )
+        total += len(data)
+    project["updated"] = time.time()
+    if project.get("module") == "game":
+        project.pop("target_approval", None)
+    project["status"] = "ready" if validate_project(project)["ready"] else "collecting"
+    project["validation"] = validate_project(project)
+    _write_project(project)
+    return project
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def _validate_public_reference_url(raw_url: str) -> str:
+    value = (raw_url or "").strip()
+    if not value:
+        raise StudioError("参考网址不能为空")
+    if "://" not in value:
+        value = "https://" + value
+    parsed = urllib.parse.urlsplit(value)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise StudioError("参考网址只支持 http 或 https")
+    if parsed.username or parsed.password:
+        raise StudioError("参考网址不能包含账号密码")
+    host = parsed.hostname.rstrip(".").lower()
+    if host in {"localhost", "localhost.localdomain"} or host.endswith(".local"):
+        raise StudioError("参考网址不能访问本机或内网")
+    try:
+        addresses = {
+            item[4][0]
+            for item in socket.getaddrinfo(host, parsed.port or (443 if parsed.scheme == "https" else 80))
+        }
+    except socket.gaierror as exc:
+        raise StudioError(f"参考网址无法解析：{host}") from exc
+    if not addresses:
+        raise StudioError(f"参考网址无法解析：{host}")
+    for address in addresses:
+        ip = ipaddress.ip_address(address)
+        if not ip.is_global:
+            raise StudioError("参考网址不能访问本机、内网或保留地址")
+    return urllib.parse.urlunsplit(parsed)
+
+
+def _reference_filename(url: str, content_type: str, index: int) -> str:
+    path_name = Path(urllib.parse.unquote(urllib.parse.urlsplit(url).path)).name
+    suffix = Path(path_name).suffix.lower()
+    mime = (content_type or "").split(";", 1)[0].strip().lower()
+    mime_suffix = {
+        "text/html": ".html",
+        "text/plain": ".txt",
+        "text/markdown": ".md",
+        "image/png": ".png",
+        "image/jpeg": ".jpg",
+        "image/webp": ".webp",
+    }.get(mime)
+    suffix = mime_suffix or suffix
+    if suffix not in REFERENCE_EXTENSIONS | IMAGE_EXTENSIONS:
+        guessed = mimetypes.guess_extension(mime) or ""
+        suffix = guessed if guessed in REFERENCE_EXTENSIONS | IMAGE_EXTENSIONS else ".html"
+    stem = _safe_name(Path(path_name).stem or f"reference-{index}")
+    return f"url-{index}-{stem}{suffix}"
+
+
+def _download_reference_url(raw_url: str, index: int) -> tuple[str, bytes, str, str]:
+    current = _validate_public_reference_url(raw_url)
+    opener = urllib.request.build_opener(_NoRedirect)
+    for _ in range(4):
+        request = urllib.request.Request(
+            current,
+            headers={
+                "User-Agent": "IdeaLab-ReferenceFetcher/1.0",
+                "Accept": "text/html,text/plain,image/png,image/jpeg,image/webp;q=0.9",
+            },
+        )
+        try:
+            response = opener.open(request, timeout=12)
+        except urllib.error.HTTPError as exc:
+            if exc.code in {301, 302, 303, 307, 308}:
+                location = exc.headers.get("Location", "")
+                if not location:
+                    raise StudioError("参考网址跳转缺少目标地址") from exc
+                current = _validate_public_reference_url(
+                    urllib.parse.urljoin(current, location)
+                )
+                continue
+            raise StudioError(f"参考网址返回 HTTP {exc.code}") from exc
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            raise StudioError(f"参考网址读取失败：{exc}") from exc
+        with response:
+            content_type = response.headers.get("Content-Type", "").lower()
+            mime = content_type.split(";", 1)[0].strip()
+            if mime not in {
+                "text/html",
+                "text/plain",
+                "text/markdown",
+                "image/png",
+                "image/jpeg",
+                "image/webp",
+            }:
+                raise StudioError(f"参考网址内容类型不支持：{mime or '未知'}")
+            declared = int(response.headers.get("Content-Length") or 0)
+            if declared > MAX_REFERENCE_BYTES:
+                raise StudioError("单个网址参考不能超过 8MB")
+            data = response.read(MAX_REFERENCE_BYTES + 1)
+            if len(data) > MAX_REFERENCE_BYTES:
+                raise StudioError("单个网址参考不能超过 8MB")
+            final_url = _validate_public_reference_url(response.geturl())
+            return (
+                _reference_filename(final_url, content_type, index),
+                data,
+                content_type,
+                final_url,
+            )
+    raise StudioError("参考网址跳转次数过多")
+
+
+def add_reference_urls(project_id: str, urls: Iterable[str]) -> dict:
+    project = get_project(project_id)
+    if project is None:
+        raise StudioError("项目不存在")
+    values = list(dict.fromkeys((url or "").strip() for url in urls if (url or "").strip()))
+    if not values:
+        raise StudioError("请填写至少一个参考网址")
+    if len(values) > MAX_REFERENCE_URLS:
+        raise StudioError(f"每次最多添加 {MAX_REFERENCE_URLS} 个参考网址")
+    downloaded = [_download_reference_url(url, index) for index, url in enumerate(values, 1)]
+    project = add_assets(
+        project_id,
+        ((name, data, content_type) for name, data, content_type, _ in downloaded),
+    )
+    start = len(project["assets"]) - len(downloaded)
+    for asset, (_, _, _, source_url) in zip(project["assets"][start:], downloaded):
+        asset["source_url"] = source_url
+        asset["source_type"] = "url"
+    project["updated"] = time.time()
+    project["validation"] = validate_project(project)
+    _write_project(project)
+    return project
+
+
+def attach_effect_preview(
+    project_id: str,
+    page_id: str,
+    name: str = "preview.html",
+    source: str = "catalog",
+) -> dict:
+    project = get_project(project_id)
+    if project is None:
+        raise StudioError("项目不存在")
+    project["effect_preview"] = {
+        "page_id": page_id,
+        "name": name[:120],
+        "source": source,
+        "created": time.time(),
+        "url": f"/s/{page_id}",
+        "raw_url": f"/api/pages/{page_id}/raw",
+    }
+    existing = {str(item.get("page_id") or "") for item in project.get("outputs") or []}
+    if page_id not in existing:
+        project.setdefault("outputs", []).append(
+            {
+                "name": name[:120],
+                "page_id": page_id,
+                "created": time.time(),
+                "kind": "effect_preview",
+                "source": source,
+            }
+        )
+    project["updated"] = time.time()
+    _write_project(project)
+    return get_project(project_id) or project
+
+
+def add_output(project_id: str, name: str, page_id: str = "") -> dict:
+    project = get_project(project_id)
+    if project is None:
+        raise StudioError("项目不存在")
+    now = time.time()
+    reused = False
+    if page_id:
+        for item in project["outputs"]:
+            if item.get("page_id") == page_id:
+                item["name"] = name[:120]
+                item["created"] = now
+                reused = True
+                break
+    if not reused:
+        project["outputs"].append(
+            {"name": name[:120], "page_id": page_id, "created": now}
+        )
+    project["status"] = "completed"
+    project["updated"] = time.time()
+    _write_project(project)
+    _archive_and_unlock(project)
+    return project
+
+
+def add_library_assets(project_id: str, owner_id: str, item_ids: Iterable[str]) -> dict:
+    import library
+
+    if not owner_id:
+        raise StudioError("登录后才能复用个人资产")
+    files = library.load_files(owner_id, item_ids)
+    if not files:
+        raise StudioError("请选择要复用的资产")
+    return add_assets(project_id, files)
+
+
+def _archive_and_unlock(project: dict) -> None:
+    owner_id = (project.get("owner_id") or "").strip()
+    if not owner_id or project.get("status") != "completed":
+        return
+    import curriculum
+    import library
+
+    outputs = _project_dir(project["id"]) / "outputs"
+    page_id = ""
+    for item in reversed(project.get("outputs") or []):
+        if item.get("page_id"):
+            page_id = item["page_id"]
+            break
+    added = library.harvest_outputs(
+        owner_id,
+        project["id"],
+        project.get("module") or "",
+        project.get("title") or "",
+        outputs,
+        page_id=page_id,
+    )
+    if added or page_id:
+        curriculum.refresh_unlocks(owner_id)
+
+
+def validate_project(project: dict) -> dict:
+    module = project.get("module")
+    gates: list[str] = []
+    if module == "style-image":
+        gates.append("每轮必须实际传入全部参考图，不能纯文字生图")
+    elif module == "animation":
+        gates.append("角色解剖结构和肢体完整后才允许拆分与绑骨")
+    elif module == "game":
+        gates.extend(
+            [
+                "必须先连接并验证 Blender MCP",
+                "先限定一个小区域并确认目标图",
+                "必须等待用户确认目标图后再建模",
+            ]
+        )
+    elif module == "text":
+        gates.append("输出必须是可在 sandbox iframe 中运行的自包含 HTML")
+    elif module == "idea-watch":
+        gates.append("先检索公开资料写入 assets/search-notes.md；已有 outputs/preview.html 时必须就地更新，不得另起一页")
+    elif module == "zdog":
+        gates.append("必须用 Zdog Illustration 建模，内联引擎，可拖拽旋转，输出 sandbox HTML")
+    elif module == "colorfigures":
+        gates.append("必须用 colorfigures 引擎：mountFigure + xrMount，build.py 打成自包含 HTML，可拖拽转圈、透视内部、至少一个真实按钮")
+    elif module == "exhibit-card":
+        gates.append("必须是馆藏卡片甲板：胶囊标签、竖版卡面预览，点击 FLIP 放大到 template 里的原始 HTML")
+    elif module == "knowledge-travel":
+        gates.append("必须是可控长卷穿越游戏：每关活画面 + knowledge/quiz，答对才能进下一关，输出 sandbox HTML")
+    elif module == "wrong-answer":
+        gates.append("用 ManimGX 渲染 outputs/explain.mp4，并由 preview.html 里的 video 播放")
+    elif module == "game-port":
+        gates.extend(
+            [
+                "只能搬自己有完整授权的游戏",
+                "材料落在 data/port-games/source，成品写到 target/web",
+                "可执行文件不得出现在 /ports 网站目录",
+            ]
+        )
+    elif module == "adventure-reader":
+        gates.append("outputs/book.json 必须通过校验，并且填空自测通过")
+    report = task_specs.inspect_project(project, _project_dir(project["id"]))
+    return {
+        "ready": report["ready"],
+        "issues": report["issues"],
+        "warnings": report["warnings"],
+        "checks": report["checks"],
+        "gates": gates,
+        "spec": report["spec"],
+        "fingerprint": report["fingerprint"],
+    }
+
+
+def prepare_project_inputs(project_id: str) -> dict:
+    project = get_project(project_id)
+    if project is None:
+        raise StudioError("项目不存在")
+    report = task_specs.inspect_project(project, _project_dir(project_id))
+    if not report["ready"]:
+        raise StudioError("；".join(report["issues"]))
+    prepared = task_specs.prepare_reference_sheets(project, _project_dir(project_id))
+    project["prepared_inputs"] = prepared
+    project["preflight"] = report
+    project["updated"] = time.time()
+    (_project_dir(project_id) / "preflight.json").write_text(
+        json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    _write_project(project)
+    return project
+
+
+def approve_game_target(project_id: str, user_id: str) -> dict:
+    project = get_project(project_id)
+    if project is None or project.get("module") != "game":
+        raise StudioError("游戏项目不存在")
+    target = _project_dir(project_id) / "outputs" / "target.png"
+    if not target.is_file() or target.stat().st_size < 80:
+        raise StudioError("目标图尚未生成")
+    project["target_approval"] = {
+        "approved": True,
+        "approved_at": time.time(),
+        "approved_by": user_id,
+        "sha256": hashlib.sha256(target.read_bytes()).hexdigest(),
+    }
+    project["status"] = "ready"
+    project["updated"] = time.time()
+    _write_project(project)
+    return project
+
+
+def _problem_image_note(project: dict) -> str:
+    names = [
+        str(asset.get("name") or "")
+        for asset in project.get("assets") or []
+        if Path(str(asset.get("name") or "")).suffix.lower() in IMAGE_EXTENSIONS
+    ]
+    if not names:
+        return "没有题目图片。根据文字需求写 outputs/problem.json，source 为 text。"
+    listed = "、".join(f"assets/{name}" for name in names)
+    return (
+        f"题目图片：{listed}。必须先对每一张 read_image，看真实像素。"
+        "把认出的题目、错的一步、正确的一步写入 outputs/problem.json，source 为 image，files 写这些文件名。"
+        "认不出或看不清就停止，不要编题。文字需求只补充图里没有的错选，不能改掉图里的题目。"
+    )
+
+
+def agent_prompt(project: dict) -> str:
+    module = project["module"]
+    root = str(_project_dir(project["id"]))
+    brief = project["brief"]
+    spec = task_specs.get_spec(project)
+    contract = (
+        "本任务的可执行交付契约：\n"
+        + "\n".join(f"- 输入：{item}" for item in spec["inputs"])
+        + "\n"
+        + "\n".join(f"- 必需产物：{item}" for item in spec["outputs"])
+        + "\n未满足契约时必须明确停止，不能用近似产物冒充完成。\n"
+    )
+    runtime = (
+        f"你运行在独立 DeepSeek Harness 中，不依赖 Cursor。项目工作区：{root}\n"
+        f"{contract}"
+        f"可用工具适配器：python {BASE_DIR / 'agent_tools.py'} capabilities；"
+        "图像生成使用同一脚本的 image-generate 子命令。\n"
+        "开始前必须检查 assets/ 中的全部参考输入：图片用于提取构图、色彩和视觉特征；"
+        "HTML/文本用于理解参考网页的结构、内容和交互。参考素材只用于借鉴，不得原样复制品牌或受保护内容。\n"
+    )
+    if module == "style-image":
+        skill = project.get("track") or "spdesign"
+        prepared = project.get("prepared_inputs") or []
+        reference_note = (
+            "原始 11 张参考图已经过逐张预检；为适配服务商单轮图片上限，"
+            f"生成时使用分类联系表：{', '.join(prepared)}。"
+            "Review 时仍须回到 assets/ 逐张读取原图，不得只审联系表。\n"
+            if skill == "spdesign" and prepared
+            else ""
+        )
+        return (
+            f"/{skill}\n"
+            f"{runtime}"
+            f"{reference_note}"
+            f"需求：{brief}\n"
+            "严格遵循技能的参考图输入、预检、生成和视觉验收流程。"
+            "生成后必须用 read_image 查看真实像素（对照参考图），按 image-review 技能写 outputs/report.md；"
+            "纯文本模型看不见图，不得声称已视觉验收。"
+            "所有成图、prompt、request JSON 与检查记录保存到项目目录 outputs/。"
+        )
+    if module == "animation":
+        animations = project.get("animations") or "idle"
+        return (
+            "/spine-animation\n"
+            f"{runtime}"
+            f"角色类型：{project.get('character_type') or 'custom'}；用户已完成完整性确认。"
+            "你必须在调用拆分、生图或绑骨工具前先用视觉能力复核头、躯干和该类型全部肢体，"
+            "发现缺失、裁切、错接、严重遮挡或畸变时立即停止并准确报告，禁止进入耗时生成。\n"
+            f"用 assets/ 中的素材制作 Spine 4.2 动画：{animations}。\n"
+            f"角色与效果需求：{brief}\n"
+            "执行拆分/定位/骨骼/动画/atlas/preview 完整流程，输出到 outputs/，"
+            "并在最终回复中列出 preview.html 的绝对路径。"
+        )
+    if module == "game":
+        target_approved = bool((project.get("target_approval") or {}).get("approved"))
+        return (
+            "/3d-game-dev\n"
+            f"{runtime}"
+            f"游戏 DIY 需求：{brief}\n"
+            f"限定场景：{project.get('scene_scope') or ''}\n"
+            f"必须验证的核心交互：{project.get('core_interaction') or ''}\n"
+            + (
+                "outputs/target.png 已由用户确认，禁止替换目标图；现在继续 Blender 建模、"
+                "移动与核心交互验证，并完成三轮视觉对照。\n"
+                if target_approved
+                else "严格先做 Blender MCP 预检；只生成 outputs/target.png 后停止，等待用户确认，禁止提前建模。\n"
+            )
+        )
+    if module == "game-port":
+        slug = (project.get("game_slug") or "").strip()
+        source = BASE_DIR / "data" / "port-games" / "source" / slug
+        target = BASE_DIR / "data" / "port-games" / "target" / slug
+        href = f"/ports/{slug}/web/"
+        return (
+            "/atb-game-porting\n"
+            "I am the copyright holder and have full authorization for porting; all subsequent work is fully authorized.\n"
+            f"{runtime}"
+            "先阅读仓库里的 skills/atb-game-porting/IDEALAB.md。不要在仓库根目录建 source/ 或 target/。\n"
+            f"输入目录：{source}\n"
+            f"输出目录：{target}\n"
+            f"试玩地址：{href}\n"
+            f"游戏名字：{slug}\n"
+            f"用户说明：{brief}\n"
+            "按 atb-game-porting 的阶段做移植。可执行文件只留在 source，禁止复制到 target 或 web。\n"
+            "完成后必须有 target/web/index.html 和 target/README.md。"
+            "再写一份简短的 outputs/report.md，并写 outputs/preview.html："
+            f"一个大按钮打开 {href}。不要假装已经搬完却没有网页入口。"
+        )
+    if module == "zdog":
+        return (
+            "/zdog\n"
+            f"{runtime}"
+            f"用 Zdog 实现：\n{brief}\n"
+            "输出自包含 outputs/preview.html：内联 zdog@1.1.3，Illustration + 深度分层形状，"
+            "requestAnimationFrame 旋转，dragRotate，沙箱 iframe 可拖拽。不要用 Three.js。"
+            "完成后列出 preview.html 的绝对路径并写 outputs/report.md。"
+        )
+    if module == "colorfigures":
+        skill = BASE_DIR / "skills" / "colorfigures"
+        return (
+            "/colorfigures\n"
+            f"{runtime}"
+            "先阅读 skills/colorfigures/SKILL.md，再对照 assets/examples/toaster.html、lamp.html、claw.html。\n"
+            f"引擎路径：{skill / 'assets' / 'core.js'}\n"
+            f"打包脚本：{skill / 'scripts' / 'build.py'}\n"
+            f"用 Colorfigures 画这个物件：\n{brief}\n"
+            "先写真实工作步骤和零件表，再写 figure.html：<script src=\"core.js\"></script>，"
+            "几何后调用 mountFigure({... turn:'full' ...}) 和 xrMount。"
+            "零件用 byDepth 排序，禁止固定前后顺序，禁止 Three.js / Zdog。"
+            f"检查每一面后运行：python \"{skill / 'scripts' / 'build.py'}\" figure.html outputs/preview.html\n"
+            "成品必须是自包含 HTML：可拖拽转一圈、See-through 看内部、Labels、至少一个真实按钮动作。"
+            "再写 outputs/report.md，用中文说明按钮做什么，并列出 preview.html 的绝对路径。"
+        )
+    if module == "exhibit-card":
+        return (
+            "/exhibit-card\n"
+            f"{runtime}"
+            f"做成馆藏卡片甲板：\n{brief}\n"
+            "硬性约束：outputs/preview.html 必须含胶囊标题标签（绝世/瑰/珍/宝/琛 或同等 data-rank）、"
+            "竖版卡面预览（图或摘句），原文放在 template.origin 中。"
+            "点击卡片用 getBoundingClientRect 做 FLIP 放大到该条原始 HTML，禁止跳转到另一页。"
+            "复制技能 examples.md 骨架，视觉跟 reference.md。写完列出 preview.html 绝对路径并写 outputs/report.md。"
+        )
+    if module == "knowledge-travel":
+        return (
+            "/knowledge-travel\n"
+            f"{runtime}"
+            f"做成知识穿越游戏：\n{brief}\n"
+            "硬性约束：outputs/preview.html 为自包含 Canvas 长卷游戏；方向键/WASD 可控角色横向穿越；"
+            "每关有参考图气质的活画面（至少一主动作+两母题循环）。"
+            "实现 levelHasKnowledge：有 knowledge+完整 quiz → 答题门；"
+            "无知识（空 knowledge / quiz 不完整）→ 必须添加场景交互动画门（热点+E/Enter+burst≥0.8s），禁止自动通关。"
+            "整局至少 1 个 quiz 关；未完成过关动作不能进入下一关。嵌入 #game-spec；"
+            "复制 skills/knowledge-travel/examples.md 骨架并按 reference.md 验收。"
+            "禁止 Vite/React/npm；沙箱 iframe 可玩。写完列出 preview.html 绝对路径并写 outputs/report.md。"
+        )
+    if module == "wrong-answer":
+        return (
+            "/wrong-answer-anim\n"
+            f"{runtime}"
+            f"把这道错题或疑难做成一条讲解短片：\n{brief}\n"
+            "硬性约束：只演错的那一步和正确的那一步，同一批物件。总长 12 到 16 秒。"
+            "用 Python 3.13+ 的 manimgx 命令渲染 outputs/explain.mp4（1280x720、30fps、小于 5.5MB）。"
+            "不要在 FastAPI 的解释器里安装 manimgx，也不要用 Canvas 冒充成片。"
+            "outputs/scene.py 保存可改的场景；outputs/preview.html 用 <video src=\"explain.mp4\" controls> 播放；"
+            "outputs/report.md 写题目、错的一步、正确的一步和 inspect 改动。\n"
+            f"{_problem_image_note(project)}"
+        )
+    if module == "idea-watch":
+        preview = _project_dir(project["id"]) / "outputs" / "preview.html"
+        prior = _project_dir(project["id"]) / "assets" / "previous-preview.html"
+        has_page = (preview.is_file() and preview.stat().st_size > 80) or (
+            prior.is_file() and prior.stat().st_size > 80
+        )
+        if has_page:
+            build = (
+                "这是同一条定时想法的复跑，不是新任务。必须阅读 assets/previous-preview.html"
+                "（没有就读 outputs/preview.html），对照 assets/search-notes.md 把同一份"
+                " outputs/preview.html 更新成最新：保留原版式、导航和交互，改标题日期、要点和来源；"
+                "禁止另写第二份 HTML、禁止换一套全新布局。分享页会覆盖同一链接。"
+            )
+        else:
+            build = (
+                "这是该想法的首次简报。做成一份自包含、可交互的 outputs/preview.html："
+                "标题、要点列表、来源链接、空结果说明。之后同一任务只会更新这一份文件。"
+            )
+        return (
+            "/html-builder\n"
+            f"{runtime}"
+            "这是「想法定时搜索」任务。先阅读 assets/search-notes.md（若没有就只根据想法）。\n"
+            f"用户想法：\n{brief}\n"
+            f"{build}"
+            "禁止 Vite/React/npm；必须写入文件而不是贴全文。"
+            "完成后只列出 preview.html 绝对路径并写 outputs/report.md。"
+        )
+    if module == "adventure-reader":
+        skill = BASE_DIR / "skills" / "adventure-reader"
+        return (
+            "/adventure-reader\n"
+            f"{runtime}"
+            "先阅读 skills/adventure-reader/SKILL.md。\n"
+            "用户材料在 assets/source.txt。来源是粘贴时，只用这份正文。"
+            "来源是链接时，打开链接抽出正文；打不开、要登录、或页面没有可读故事时停止，请用户改粘贴。不要凭标题编书。\n"
+            f"材料说明：{brief}\n"
+            "用自己的分级英文重写情节，写成 outputs/book.json。每句都有中文和语法。不要把用户原文整段抄进 en。\n"
+            f"写完运行：python \"{skill / 'scripts' / 'validate.py'}\" outputs/book.json\n"
+            f"再运行：node \"{skill / 'scripts' / 'playtest.js'}\" outputs/book.json\n"
+            "两步都通过后，写一份至少几十字的 outputs/report.md，说明书 id、章数、年龄带和填空题数，并写明这是分级改写。"
+            "不要生成阅读器，不要写 preview.html。"
+        )
+    return (
+        "/html-builder\n"
+        f"{runtime}"
+        f"实现以下想法：\n{brief}\n"
+        "硬性约束：只输出一个自包含、可交互的 outputs/preview.html（HTML+CSS+原生 JS）。"
+        "禁止 Vite / React / npm 构建 / Partykit / SQLite / 服务端 WebSocket。"
+        "用户提到的联网或后端能力，改成浏览器本地状态模拟。"
+        "必须用文件工具写入 preview.html，不要把整份源码贴进对话（会触发 max-tokens 截断）。"
+        "页面必须同时兼容 http(s) 沙箱和 file:// 本地预览；锚点导航要 preventDefault 后用 scrollIntoView，"
+        "不得导航或加载 file:// URL。"
+        "完成后在最终回复中只列出该文件的绝对路径。"
+    )
+
+
+def continue_prompt(project: dict, previous: str = "") -> str:
+    snippet = (previous or "").strip().replace("\n", " ")[:240]
+    if project.get("module") == "adventure-reader":
+        return (
+            "上一轮被截断。请用工具写完 outputs/book.json，再跑校验和填空自测。\n"
+            "不要把整份 JSON 贴进对话。材料在 assets/source.txt。\n"
+            f"需求摘要：{(project.get('brief') or '')[:400]}\n"
+            + (f"上次截断前的摘要：{snippet}\n" if snippet else "")
+        )
+    return (
+        "上一轮因 max-tokens 被截断，对话里的半成品不算完成。\n"
+        "请立刻用工具写入或补全 outputs/preview.html："
+        "必须是可在沙箱 iframe 运行的自包含单文件，无构建步骤、无服务端。\n"
+        "不要重写长计划，不要把完整源码贴进回复。写完后只报告该文件的绝对路径。\n"
+        f"模块：{project.get('module') or 'text'}。需求：{(project.get('brief') or '')[:400]}\n"
+        + (f"上次截断前的摘要：{snippet}\n" if snippet else "")
+    )
+
+
+def update_status(project_id: str, status: str, run_id: str = "", error: str = "") -> dict:
+    project = get_project(project_id)
+    if project is None:
+        raise StudioError("项目不存在")
+    project["status"] = status
+    project["updated"] = time.time()
+    if run_id:
+        project["run_id"] = run_id
+    if error:
+        project["error"] = error[:1000]
+    elif "error" in project:
+        project.pop("error")
+    _write_project(project)
+    if status == "completed":
+        _archive_and_unlock(project)
+    return project
+
+
+def _task_markdown(project: dict) -> str:
+    info = MODULES[project["module"]]
+    validation = validate_project(project)
+    asset_lines = "\n".join(
+        f"- `assets/{a['name']}` ({a['content_type']}, {a['size']} bytes)"
+        + (f"\n  - 来源：{a['source_url']}" if a.get("source_url") else "")
+        for a in project.get("assets", [])
+    ) or "- 尚未上传"
+    gate_lines = "\n".join(f"- {g}" for g in validation["gates"]) or "- 无"
+    issue_lines = "\n".join(f"- {x}" for x in validation["issues"]) or "- 已满足"
+    return f"""# {project['title']}
+
+## 模块
+
+{info['title']} · `{info['skill']}`
+
+## 想法
+
+{project['brief']}
+
+## 输入素材
+
+{asset_lines}
+
+## 执行门槛
+
+{gate_lines}
+
+## 当前缺项
+
+{issue_lines}
+
+## Harness Agent 指令
+
+```text
+{agent_prompt(project)}
+```
+"""

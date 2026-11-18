@@ -1,0 +1,8 @@
+static cache bytes 80844870
+{
+  "root_owned": true,
+  "native_cache_bytes": 80844870,
+  "file_count": 4882,
+  "runtime_sha256": "1cc41d5a8745a5b9d47c8604e44f23eb8af2d8ca02b2afa0be101d5f71be6ea4",
+  "systemd_status_check": "synthetic inactive; box not systemd"
+}

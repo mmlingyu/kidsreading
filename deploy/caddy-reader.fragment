@@ -1,0 +1,19 @@
+# INCREMENTAL FRAGMENT ONLY. Merge INSIDE EXISTING HTTPS site block.
+# Do not replace sites, existing auth, TTS routes, Harness upstream or TLS config.
+# Do not enable on HTTP. Valid/trusted certificate for IP is a release prerequisite.
+@reader_api path /api/reader/*
+handle @reader_api {
+    request_body { max_size 100KB }
+    reverse_proxy 127.0.0.1:6010
+}
+redir /reader /reader/ 308
+handle_path /reader/* {
+    root * /opt/reader/current/frontend/app
+    header Cache-Control "no-cache"
+    header X-Content-Type-Options "nosniff"
+    header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https:; media-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+    file_server
+}
+# Unchanged: /api/tts, /api/voices, /api/health and existing root/Harness routes.
+# Ensure existing catch-all basic_auth doesn't accidentally block Reader Bearer;
+# keep old routes' auth intact. Never disable auth globally to make Reader work.

@@ -1,0 +1,17 @@
+{
+  "fake_model_requests": 6,
+  "noexec_mount": true,
+  "quality_repairs": 2,
+  "real_sdk_inflight_cancel": true,
+  "restart_session_cleanup": true,
+  "sdk_real_binary": true,
+  "sdk_turns": 3,
+  "session_resumes": 2,
+  "static_cache_unchanged": true,
+  "tested_trusted_manifest_sha256": "c4120db355dcde3fae99f8fe4ea2a16622bb860cc8aa219f7d23577e49e04492",
+  "source_and_cache_root_ownership_checked": true,
+  "worker_uid": 1000,
+  "host": "box Linux Python3.13",
+  "formal_server_systemd_unit_tested": false,
+  "no_real_credentials_or_provider_calls": true
+}
