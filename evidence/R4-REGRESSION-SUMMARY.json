@@ -1,0 +1,19 @@
+{
+  "release": "reader-phase1-20261117-r4",
+  "box_python": "3.13",
+  "pytest": "114 passed; 1 third-party deprecation warning",
+  "frontend_node_fixture": "passed",
+  "python_ast_shell_and_frontend_js_syntax": "passed",
+  "real_seccomp_not_mock": true,
+  "official_filter_reference": "systemd v255 seccomp_restrict_sxid; includes openat2 ENOSYS",
+  "cross_uid_sqlite": "real UIDs 65533/65534, GID1000, root-precreated shared roots; EPERM filter active in both clients",
+  "real_sdk_noexec_filtered": "passed using root-owned official Ubuntu24.04 bwrap0.9.0 extracted test binary; 3 real SDK sessions, 2 resumes/repairs, 6 fake-only requests, inflight cancel and restart cleanup",
+  "box_default_bwrap_0_12": "not compatible with official filter openat2 ENOSYS; not weakened or replaced",
+  "production_systemd_py312_acceptance": "NOT RUN: separate Tencent workflow must verify actual production unit/runtime/bwrap/mount/cgroups",
+  "generation_enabled": false,
+  "acceptance_gates": "all example values remain false; six gates must be signed again against r4 trusted hash",
+  "secrets_server_tts": "no server connections, real Key/model use, TTS edits or original workspace changes",
+  "real_sdk_smoke_socket_bytes": 104,
+  "production_smoke_socket_bytes": 104,
+  "production_fixture_path": "root-precreated /var/lib/reader/jobs/.r4-<UUID>/data"
+}

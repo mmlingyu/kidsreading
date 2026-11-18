@@ -1,0 +1,200 @@
+"""Standalone Harness skill registry backed by HTML Share files.
+
+Source skills live in ``html-share/skills`` and are synchronized into the
+isolated Harness home before every run. Operators can add or update skills
+through the Studio API without changing DeepSeek Harness itself.
+"""
+from __future__ import annotations
+
+import json
+import re
+import shutil
+import tempfile
+import zipfile
+from io import BytesIO
+from pathlib import Path
+from typing import Optional
+
+BASE_DIR = Path(__file__).resolve().parent
+SOURCE_DIR = BASE_DIR / "skills"
+DSH_HOME = BASE_DIR / "data" / "dsh-home"
+RUNTIME_SKILLS_DIR = DSH_HOME / "skills"
+BUILTIN_NAMES = {
+    "html-builder",
+    "spine-animation",
+    "spdesign",
+    "dtdesign",
+    "3d-game-dev",
+    "knowledge-travel",
+    "zdog",
+    "exhibit-card",
+    "creation-engine",
+    "img2threejs",
+    "wrong-answer-anim",
+}
+NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+MAX_BUNDLE_BYTES = 50 * 1024 * 1024
+MAX_EXPANDED_BYTES = 100 * 1024 * 1024
+MAX_BUNDLE_FILES = 500
+
+
+class SkillRegistryError(ValueError):
+    pass
+
+
+def _frontmatter(text: str) -> dict[str, str]:
+    if not text.startswith("---\n"):
+        return {}
+    end = text.find("\n---", 4)
+    if end < 0:
+        return {}
+    result: dict[str, str] = {}
+    for line in text[4:end].splitlines():
+        key, sep, value = line.partition(":")
+        if sep:
+            result[key.strip()] = value.strip().strip("\"'")
+    return result
+
+
+def list_skills(user=None) -> list[dict]:
+    import curriculum
+
+    skills = []
+    owned = curriculum.unlocked_set(user)
+    SOURCE_DIR.mkdir(parents=True, exist_ok=True)
+    for path in sorted(SOURCE_DIR.glob("*/SKILL.md")):
+        text = path.read_text(encoding="utf-8")
+        meta = _frontmatter(text)
+        name = meta.get("name", path.parent.name)
+        catalog = curriculum.SKILL_META.get(name, {})
+        availability = catalog.get("availability") or "custom"
+        skills.append(
+            {
+                "name": name,
+                "description": meta.get("description", ""),
+                "whenToUse": meta.get("whenToUse", ""),
+                "builtin": name in BUILTIN_NAMES,
+                "availability": availability,
+                "unlocked": True if availability == "custom" else name in owned,
+                "module": catalog.get("module", ""),
+                "task": catalog.get("task", ""),
+                "has_quiz": name in curriculum.QUIZZES,
+                "path": str(path),
+            }
+        )
+    return skills
+
+
+def get_skill(name: str) -> Optional[dict]:
+    if not NAME_RE.match(name or ""):
+        return None
+    path = SOURCE_DIR / name / "SKILL.md"
+    if not path.exists():
+        return None
+    text = path.read_text(encoding="utf-8")
+    return {"meta": _frontmatter(text), "content": text, "path": str(path)}
+
+
+def save_skill(name: str, description: str, instructions: str) -> dict:
+    if not NAME_RE.match(name or ""):
+        raise SkillRegistryError("Skill 名称必须是小写 kebab-case")
+    if name in BUILTIN_NAMES:
+        raise SkillRegistryError("内置 Skill 不能通过 API 覆盖")
+    description = (description or "").strip()
+    instructions = (instructions or "").strip()
+    if not description or not instructions:
+        raise SkillRegistryError("描述和指令不能为空")
+    safe_description = " ".join(description.split())[:500]
+    root = SOURCE_DIR / name
+    root.mkdir(parents=True, exist_ok=True)
+    text = (
+        "---\n"
+        f"name: {name}\n"
+        f"description: {json.dumps(safe_description, ensure_ascii=False)}\n"
+        "user-invocable: true\n"
+        "---\n\n"
+        f"{instructions}\n"
+    )
+    (root / "SKILL.md").write_text(text, encoding="utf-8")
+    sync_skills()
+    return get_skill(name) or {}
+
+
+def import_skill_bundle(filename: str, data: bytes) -> dict:
+    """Install a complete ZIP skill bundle after safe extraction checks."""
+    if not filename.lower().endswith(".zip"):
+        raise SkillRegistryError("Skill Bundle 必须是 ZIP")
+    if not data or len(data) > MAX_BUNDLE_BYTES:
+        raise SkillRegistryError("Skill Bundle 为空或超过 50MB")
+    try:
+        archive = zipfile.ZipFile(BytesIO(data))
+    except zipfile.BadZipFile as exc:
+        raise SkillRegistryError("无效 ZIP 文件") from exc
+    infos = [info for info in archive.infolist() if not info.is_dir()]
+    if len(infos) > MAX_BUNDLE_FILES:
+        raise SkillRegistryError("Skill Bundle 文件数超过 500")
+    if sum(info.file_size for info in infos) > MAX_EXPANDED_BYTES:
+        raise SkillRegistryError("Skill Bundle 解压后超过 100MB")
+    for info in infos:
+        path = Path(info.filename.replace("\\", "/"))
+        if path.is_absolute() or ".." in path.parts:
+            raise SkillRegistryError("Skill Bundle 包含不安全路径")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        extract_root = Path(tmp)
+        archive.extractall(extract_root)
+        candidates = list(extract_root.glob("SKILL.md")) + list(
+            extract_root.glob("*/SKILL.md")
+        )
+        if len(candidates) != 1:
+            raise SkillRegistryError(
+                "ZIP 顶层或单个一级目录内必须恰好有一个 SKILL.md"
+            )
+        skill_file = candidates[0]
+        text = skill_file.read_text(encoding="utf-8")
+        meta = _frontmatter(text)
+        name = meta.get("name", "")
+        if not NAME_RE.match(name):
+            raise SkillRegistryError("SKILL.md 缺少合法的 kebab-case name")
+        if not meta.get("description"):
+            raise SkillRegistryError("SKILL.md 缺少 description")
+        if name in BUILTIN_NAMES:
+            raise SkillRegistryError("ZIP 不能覆盖内置 Skill")
+        target = SOURCE_DIR / name
+        if target.exists():
+            shutil.rmtree(target)
+        shutil.copytree(skill_file.parent, target)
+    sync_skills()
+    return get_skill(name) or {}
+
+
+def delete_skill(name: str) -> None:
+    if name in BUILTIN_NAMES:
+        raise SkillRegistryError("内置 Skill 不能删除")
+    if not NAME_RE.match(name or ""):
+        raise SkillRegistryError("Skill 名称非法")
+    root = SOURCE_DIR / name
+    if not root.exists():
+        raise SkillRegistryError("Skill 不存在")
+    shutil.rmtree(root)
+    runtime = RUNTIME_SKILLS_DIR / name
+    if runtime.exists():
+        shutil.rmtree(runtime)
+
+
+def sync_skills() -> list[dict]:
+    """Mirror source skill bundles into the isolated Harness home."""
+    RUNTIME_SKILLS_DIR.mkdir(parents=True, exist_ok=True)
+    source_names = set()
+    for source in SOURCE_DIR.iterdir():
+        if not source.is_dir() or not (source / "SKILL.md").exists():
+            continue
+        source_names.add(source.name)
+        target = RUNTIME_SKILLS_DIR / source.name
+        if target.exists():
+            shutil.rmtree(target)
+        shutil.copytree(source, target)
+    for target in RUNTIME_SKILLS_DIR.iterdir():
+        if target.is_dir() and target.name not in source_names:
+            shutil.rmtree(target)
+    return list_skills()

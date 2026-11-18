@@ -1,0 +1,204 @@
+"""Local reader import jobs.
+
+The static reader never holds a model key. It posts pasted text or a link to
+this machine, and IdeaLab runs the adventure-reader skill through DeepSeek
+Harness. A book is returned only after it exists on disk.
+"""
+from __future__ import annotations
+
+import json
+import re
+import time
+from pathlib import Path
+from typing import Callable, Optional
+from urllib.parse import urlparse
+
+import studio
+import users
+
+READER_OWNER_ID = "readerlocal"
+READER_ORIGINS = {
+    "http://127.0.0.1:8133",
+    "http://localhost:8133",
+}
+LOCAL_HOSTS = {"127.0.0.1", "::1", "localhost"}
+MAX_TEXT = 20000
+MIN_TEXT = 20
+AGES = {
+    "4-6": "4–6 岁 / 入门",
+    "8-12": "8–12 岁 / 章节书",
+}
+PHASE_LABELS = {
+    "queued": "读材料",
+    "agent": "读材料",
+    "build": "改写",
+    "review": "校验",
+    "publish": "校验",
+    "completed": "可预览",
+    "failed": "失败",
+    "review_failed": "失败",
+    "cancelled": "已取消",
+}
+
+
+class ReaderImportError(ValueError):
+    def __init__(self, message: str, status_code: int = 400):
+        self.status_code = status_code
+        super().__init__(message)
+
+
+def client_is_local(host: str) -> bool:
+    return (host or "").strip() in LOCAL_HOSTS
+
+
+def cors_headers(origin: str) -> dict[str, str]:
+    if origin not in READER_ORIGINS:
+        return {}
+    return {
+        "Access-Control-Allow-Origin": origin,
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Max-Age": "600",
+        "Vary": "Origin",
+    }
+
+
+def ensure_owner() -> users.User:
+    user = users.get_user(READER_OWNER_ID)
+    if user is not None:
+        return user
+    user = users.User(
+        id=READER_OWNER_ID,
+        name="阅读导入",
+        created=time.time(),
+        descriptors=[],
+    )
+    users.save_user(user)
+    return user
+
+
+def _age_label(age: str) -> str:
+    return AGES.get(age, AGES["8-12"])
+
+
+def _clean_url(value: str) -> str:
+    url = (value or "").strip()
+    if len(url) > 2000 or any(ch.isspace() for ch in url):
+        raise ReaderImportError("这个链接无法打开，请改成 http 或 https 地址")
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ReaderImportError("这个链接无法打开，请改成 http 或 https 地址")
+    return url
+
+
+def parse_import(data: dict) -> dict:
+    if not isinstance(data, dict):
+        raise ReaderImportError("请粘贴正文，或给一个链接")
+    source = str(data.get("source") or "text").strip()
+    age = str(data.get("age") or "8-12").strip()
+    if age not in AGES:
+        age = "8-12"
+    age_label = _age_label(age)
+    if source == "url":
+        url = _clean_url(str(data.get("url") or ""))
+        host = urlparse(url).netloc
+        text = f"来源：链接\n年龄带：{age_label}\n链接：{url}\n"
+        brief = f"年龄带：{age_label}。打开这个链接后按 adventure-reader 改写：{url}"
+        title = host[:40] or "英语闯关导入"
+    elif source == "text":
+        body = str(data.get("text") or "").strip()
+        if len(body) < MIN_TEXT:
+            raise ReaderImportError("正文太短，请再贴一段可读的故事或文章")
+        if len(body) > MAX_TEXT:
+            raise ReaderImportError(f"正文请控制在 {MAX_TEXT} 字以内，长篇会收成 4–8 章")
+        text = f"来源：粘贴\n年龄带：{age_label}\n\n{body}\n"
+        brief = f"年龄带：{age_label}。材料在 assets/source.txt，按 adventure-reader 写成书。"
+        first = re.sub(r"\s+", " ", body.splitlines()[0]).strip()
+        title = first[:40] or "英语闯关导入"
+    else:
+        raise ReaderImportError("请粘贴正文，或给一个链接")
+    return {
+        "source": source,
+        "age": age,
+        "title": title,
+        "brief": brief[:8000],
+        "source_text": text,
+    }
+
+
+async def start_import(data: dict, start: Callable) -> dict:
+    parsed = parse_import(data)
+    owner = ensure_owner()
+    project = studio.create_project(
+        "adventure-reader",
+        parsed["title"],
+        parsed["brief"],
+        owner_id=owner.id,
+    )
+    studio.add_assets(
+        project["id"],
+        [("source.txt", parsed["source_text"].encode("utf-8"), "text/plain; charset=utf-8")],
+    )
+    run = await start(project["id"])
+    return {
+        "id": project["id"],
+        "status": "running",
+        "label": "读材料",
+        "detail": str((run or {}).get("progress", {}).get("detail") or ""),
+        "error": "",
+        "book": None,
+    }
+
+
+def _read_book(project_id: str) -> tuple[Optional[dict], list[str]]:
+    path = Path(studio.PROJECTS_DIR) / project_id / "outputs" / "book.json"
+    if not path.is_file():
+        return None, ["书还没有写出来"]
+    try:
+        book = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None, ["生成的书稿不是合法 JSON"]
+    if not isinstance(book, dict) or not book.get("chapters"):
+        return None, ["生成的书稿没有章节"]
+    return book, []
+
+
+def public_job(project_id: str, get_run: Callable) -> Optional[dict]:
+    project = studio.get_project(project_id)
+    if project is None:
+        return None
+    if project.get("module") != "adventure-reader":
+        return None
+    if (project.get("owner_id") or "") != READER_OWNER_ID:
+        return None
+    run = get_run(str(project.get("run_id") or "")) if project.get("run_id") else None
+    run = run or {}
+    progress = run.get("progress") if isinstance(run.get("progress"), dict) else {}
+    phase = str(progress.get("phase") or run.get("status") or project.get("status") or "queued")
+    label = PHASE_LABELS.get(phase, "改写")
+    detail = str(progress.get("detail") or "")[:180]
+    error = str(run.get("error") or project.get("error") or "")[:500]
+    status_name = str(run.get("status") or project.get("status") or "queued")
+    book = None
+    if status_name == "completed":
+        book, problems = _read_book(project["id"])
+        if problems:
+            status_name = "failed"
+            label = "失败"
+            error = problems[0]
+        else:
+            status_name = "ready"
+            label = "可预览"
+    elif status_name in {"failed", "review_failed", "cancelled"}:
+        status_name = "failed"
+        label = PHASE_LABELS.get(phase, "失败")
+    else:
+        status_name = "running"
+    return {
+        "id": project["id"],
+        "status": status_name,
+        "label": label,
+        "detail": detail,
+        "error": error,
+        "book": book,
+    }

@@ -1,0 +1,9 @@
+{
+  "skills": 9,
+  "evidence/original-source": 20,
+  "unchanged_lockfiles": [
+    "requirements-linux-py312.lock"
+  ],
+  "frontend_only_change": "app/index.html: r4 cache-buster; all other original staged frontend bytes unchanged",
+  "version": "reader-phase1-20261117-r4"
+}

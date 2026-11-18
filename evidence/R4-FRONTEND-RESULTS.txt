@@ -1,0 +1,2 @@
+frontend module tests passed
+original local book fixture validation and explicit bookshelf import passed

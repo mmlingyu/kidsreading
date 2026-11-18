@@ -1,0 +1,353 @@
+"""Executable Studio task contracts shared by validation, UI and review."""
+from __future__ import annotations
+
+import hashlib
+import json
+from pathlib import Path
+from typing import Optional
+
+from PIL import Image, ImageDraw, ImageOps
+
+IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
+
+SPECS = {
+    "text": {
+        "skill": "html-builder",
+        "label": "互动网页",
+        "estimate": (8, 20),
+        "expectation": "自包含、可交互、移动端可用的单文件网页",
+        "inputs": ["明确的目标、受众和核心交互；参考图片或网页可选"],
+        "outputs": ["preview.html", "report.md"],
+    },
+    "zdog": {
+        "skill": "zdog",
+        "label": "Zdog 伪 3D",
+        "estimate": (10, 25),
+        "expectation": "可拖拽旋转、自动展示深度结构的 Zdog 单页",
+        "inputs": ["明确主体、配色和希望从不同角度看到的结构"],
+        "outputs": ["preview.html", "report.md"],
+    },
+    "colorfigures": {
+        "skill": "colorfigures",
+        "label": "彩墨物件",
+        "estimate": (15, 40),
+        "expectation": "手绘等轴测物件：可转一圈、透视内部、至少一个真实按钮",
+        "inputs": ["物件名称和它怎么工作；参考图可选"],
+        "outputs": ["preview.html", "report.md"],
+    },
+    "exhibit-card": {
+        "skill": "exhibit-card",
+        "label": "馆藏卡片",
+        "estimate": (10, 22),
+        "expectation": "带等级胶囊标签的竖版卡组，点击从卡面 FLIP 放大到原始 HTML",
+        "inputs": ["若干条目（标题、等级、预览图或摘句、原文）；参考图和现有 HTML 可选"],
+        "outputs": ["preview.html", "report.md"],
+    },
+    "spdesign": {
+        "skill": "spdesign",
+        "label": "spDesign 头像",
+        "estimate": (15, 35),
+        "expectation": "孤立人头、强烈眼睛系统、高饱和平面色块",
+        "inputs": ["5 张真实透明风格 PNG", "6 张正面成品头像", "身份与眼睛系统描述"],
+        "outputs": ["final image", "report.md", "prompt/request records"],
+    },
+    "dtdesign": {
+        "skill": "dtdesign",
+        "label": "DTdesign 全身角色",
+        "estimate": (12, 30),
+        "expectation": "宽肩宽腰、极细长腿、小头的完整全身角色",
+        "inputs": ["4 张原始风格参考图", "身份、动作和指定道具"],
+        "outputs": ["final image", "report.md", "prompt/request records"],
+    },
+    "animation": {
+        "skill": "spine-animation",
+        "label": "Spine 骨骼动画",
+        "estimate": (25, 70),
+        "expectation": "肢体完整、关节稳定、动作可切换的 Spine 4.2 动画",
+        "inputs": ["完整角色图或完整 Spine/分层包", "动作列表", "角色解剖完整性确认"],
+        "outputs": ["preview.html", "skeleton.json", "atlas", "atlas image", "report.md"],
+    },
+    "game": {
+        "skill": "3d-game-dev",
+        "label": "小型 3D 场景",
+        "estimate": (45, 120),
+        "expectation": "一个可验证移动和核心交互的限定范围 3D 原型",
+        "inputs": ["限定场景范围", "一个核心交互", "Blender、视觉与生图能力"],
+        "outputs": ["scene.blend", "target image", "iteration screenshots", "report.md"],
+    },
+    "knowledge-travel": {
+        "skill": "knowledge-travel",
+        "label": "知识穿越答题游戏",
+        "estimate": (20, 45),
+        "expectation": "可控角色穿越多关、每关活画面+知识答题门的自包含 HTML 游戏",
+        "inputs": ["主题或年表", "参考图/知识点（可选）", "希望的关卡数量 4–12"],
+        "outputs": ["preview.html", "report.md", "levels.json（可选）"],
+    },
+    "wrong-answer": {
+        "skill": "wrong-answer-anim",
+        "label": "错题讲解动画",
+        "estimate": (12, 30),
+        "expectation": "一条 12–16 秒的 ManimGX 短片：先标出错的一步，再用同一批物件演对",
+        "inputs": ["题目文字", "可选的题目图片", "选错的一步（图或文字里没有就只写难的那一步）"],
+        "outputs": ["problem.json", "scene.py", "explain.mp4", "preview.html", "report.md"],
+    },
+    "idea-watch": {
+        "skill": "html-builder",
+        "label": "想法定时搜索简报",
+        "estimate": (8, 18),
+        "expectation": "带检索纪要的自包含简报页；同一任务到点更新原 preview.html",
+        "inputs": ["想法", "1/6/12/24 小时间隔"],
+        "outputs": ["preview.html", "report.md", "search-notes.md"],
+    },
+    "game-port": {
+        "skill": "atb-game-porting",
+        "label": "游戏搬家",
+        "estimate": (30, 180),
+        "expectation": "把已授权的电脑游戏整理成可在 /ports/<游戏>/web/ 打开的网页",
+        "inputs": ["data/port-games/source/<游戏> 里的游戏包", "版权确认"],
+        "outputs": ["target/<游戏>/web/index.html", "target/<游戏>/README.md", "outputs/report.md"],
+    },
+    "adventure-reader": {
+        "skill": "adventure-reader",
+        "label": "英语闯关图书",
+        "estimate": (8, 25),
+        "expectation": "一份通过校验和填空自测的分级书，每句都有中英对照和语法",
+        "inputs": ["粘贴的正文或一个网页链接", "年龄带"],
+        "outputs": ["book.json", "report.md"],
+    },
+}
+
+
+def spec_key(project_or_module, track: str = "") -> str:
+    if isinstance(project_or_module, dict):
+        module = project_or_module.get("module", "")
+        track = project_or_module.get("track", "")
+    else:
+        module = str(project_or_module or "")
+    return track if module == "style-image" and track in {"spdesign", "dtdesign"} else module
+
+
+def get_spec(project_or_module, track: str = "") -> dict:
+    key = spec_key(project_or_module, track)
+    return {"id": key, **SPECS.get(key, SPECS["text"])}
+
+
+def _check(key: str, label: str, ok: bool, detail: str, *, warning: bool = False) -> dict:
+    return {
+        "key": key,
+        "label": label,
+        "status": "warning" if warning and not ok else ("pass" if ok else "fail"),
+        "detail": detail,
+    }
+
+
+def inspect_image(path: Path) -> dict:
+    result = {
+        "valid": False,
+        "width": 0,
+        "height": 0,
+        "mode": "",
+        "transparent": False,
+        "sha256": "",
+        "error": "",
+    }
+    try:
+        raw = path.read_bytes()
+        result["sha256"] = hashlib.sha256(raw).hexdigest()
+        with Image.open(path) as image:
+            image.verify()
+        with Image.open(path) as image:
+            result["width"], result["height"] = image.size
+            result["mode"] = image.mode
+            if image.mode in {"RGBA", "LA"} or "transparency" in image.info:
+                alpha = image.convert("RGBA").getchannel("A")
+                extrema = alpha.getextrema()
+                result["transparent"] = bool(extrema and extrema[0] < 250)
+            result["valid"] = image.width >= 128 and image.height >= 128
+            if not result["valid"]:
+                result["error"] = "图片尺寸至少需要 128×128"
+    except Exception as exc:
+        result["error"] = f"{type(exc).__name__}: {exc}"
+    return result
+
+
+def inspect_project(project: dict, project_root: Path) -> dict:
+    assets_dir = project_root / "assets"
+    checks: list[dict] = []
+    issues: list[str] = []
+    warnings: list[str] = []
+    image_rows: list[dict] = []
+    seen_hashes: set[str] = set()
+    duplicate_names: list[str] = []
+
+    brief_ok = bool((project.get("brief") or "").strip())
+    checks.append(_check("brief", "创作描述", brief_ok, "已填写" if brief_ok else "请填写创作描述"))
+    if not brief_ok:
+        issues.append("请填写创作描述")
+
+    for asset in project.get("assets") or []:
+        path = assets_dir / str(asset.get("name") or "")
+        if path.suffix.lower() not in IMAGE_SUFFIXES:
+            continue
+        info = inspect_image(path)
+        row = {"name": asset.get("name", ""), **info}
+        image_rows.append(row)
+        if info["sha256"] and info["sha256"] in seen_hashes:
+            duplicate_names.append(row["name"])
+        seen_hashes.add(info["sha256"])
+
+    invalid = [row["name"] for row in image_rows if not row["valid"]]
+    if invalid:
+        issues.append("存在损坏或尺寸过小的图片：" + "、".join(invalid[:4]))
+    if duplicate_names:
+        warnings.append("检测到重复图片：" + "、".join(duplicate_names[:4]))
+    if image_rows:
+        checks.append(
+            _check(
+                "image_integrity",
+                "图片可用性",
+                not invalid,
+                f"{len(image_rows) - len(invalid)}/{len(image_rows)} 张可正常解码",
+            )
+        )
+
+    key = spec_key(project)
+    if project.get("module") == "style-image" and key not in {"spdesign", "dtdesign"}:
+        checks.append(_check("track", "角色设计体系", False, "请选择 spDesign 或 DTdesign"))
+        issues.append("请选择 spDesign 或 DTdesign")
+    if key == "spdesign":
+        transparent = [row for row in image_rows if row["valid"] and row["transparent"]]
+        opaque = [row for row in image_rows if row["valid"] and not row["transparent"]]
+        enough_style = len(transparent) >= 5
+        enough_heads = len(opaque) >= 6
+        checks.extend(
+            [
+                _check("style_refs", "透明风格参考", enough_style, f"{len(transparent)}/5 张"),
+                _check("head_refs", "正面成品头像", enough_heads, f"{len(opaque)}/6 张；生成前还会进行视觉确认"),
+            ]
+        )
+        if not enough_style:
+            issues.append(f"需要 5 张真实透明风格 PNG，当前 {len(transparent)} 张")
+        if not enough_heads:
+            issues.append(f"需要 6 张正面成品头像，当前可分类 {len(opaque)} 张")
+    elif key == "dtdesign":
+        enough = len([row for row in image_rows if row["valid"]]) >= 4
+        checks.append(_check("style_refs", "原始风格参考", enough, f"{len(image_rows)}/4 张"))
+        if not enough:
+            issues.append(f"需要 4 张可用原始风格图，当前 {len(image_rows)} 张")
+    elif key == "animation":
+        assets = project.get("assets") or []
+        names = {Path(str(item.get("name") or "")).suffix.lower() for item in assets}
+        spine_package = {".json", ".atlas"}.issubset(names) and bool(
+            names & IMAGE_SUFFIXES
+        )
+        image_input = bool(image_rows)
+        has_source = spine_package or image_input
+        actions_ok = bool((project.get("animations") or "").strip())
+        anatomy_ok = spine_package or bool(project.get("anatomy_confirmed"))
+        character_type = project.get("character_type") or "未选择"
+        checks.extend(
+            [
+                _check("character_source", "角色素材", has_source, "完整 Spine 包" if spine_package else f"{len(image_rows)} 张角色图"),
+                _check("actions", "动作列表", actions_ok, project.get("animations") or "尚未填写"),
+                _check("anatomy", "角色肢体完整", anatomy_ok, f"{character_type}；{'用户已确认，启动后由视觉模型复核' if anatomy_ok else '请确认头、躯干和全部可动肢体完整'}"),
+            ]
+        )
+        if not has_source:
+            issues.append("至少上传一张完整角色图，或完整 JSON + atlas + 贴图")
+        if not actions_ok:
+            issues.append("请填写要制作的动作")
+        if not anatomy_ok:
+            issues.append("请确认角色肢体完整、连接正常且未被裁切或严重遮挡")
+    elif key == "game":
+        scope_ok = bool((project.get("scene_scope") or "").strip())
+        interaction_ok = bool((project.get("core_interaction") or "").strip())
+        checks.extend(
+            [
+                _check("scene_scope", "限定场景范围", scope_ok, project.get("scene_scope") or "尚未填写"),
+                _check("core_interaction", "核心交互", interaction_ok, project.get("core_interaction") or "尚未填写"),
+            ]
+        )
+        if not scope_ok:
+            issues.append("请限定一个桥、街道、庭院等小范围场景")
+        if not interaction_ok:
+            issues.append("请填写一个必须验证的核心交互")
+    elif key == "game-port":
+        import port_games
+
+        slug = str(project.get("game_slug") or "").strip()
+        source_ok = bool(slug) and port_games.source_ready(slug)
+        checks.append(
+            _check(
+                "source_bundle",
+                "游戏材料",
+                source_ok,
+                f"data/port-games/source/{slug}" if source_ok else "还没有放进游戏包",
+            )
+        )
+        if not slug:
+            issues.append("缺少游戏名字")
+        elif not source_ok:
+            issues.append("还没有放进游戏包")
+
+    fingerprint = hashlib.sha256(
+        json.dumps(
+            {
+                "spec": key,
+                "brief": project.get("brief", ""),
+                "animations": project.get("animations", ""),
+                "character_type": project.get("character_type", ""),
+                "anatomy_confirmed": project.get("anatomy_confirmed", False),
+                "scene_scope": project.get("scene_scope", ""),
+                "core_interaction": project.get("core_interaction", ""),
+                "assets": [(row["name"], row["sha256"]) for row in image_rows],
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        ).encode("utf-8")
+    ).hexdigest()
+    return {
+        "ready": not issues,
+        "issues": list(dict.fromkeys(issues)),
+        "warnings": warnings,
+        "checks": checks,
+        "images": image_rows,
+        "fingerprint": fingerprint,
+        "spec": get_spec(project),
+    }
+
+
+def _contact_sheet(rows: list[dict], assets_dir: Path, output: Path, title: str) -> None:
+    thumb_w, thumb_h = 220, 260
+    cols = min(3, max(1, len(rows)))
+    rows_count = (len(rows) + cols - 1) // cols
+    sheet = Image.new("RGB", (cols * thumb_w, 50 + rows_count * thumb_h), "#20232b")
+    draw = ImageDraw.Draw(sheet)
+    draw.text((14, 14), title, fill="white")
+    for index, row in enumerate(rows):
+        with Image.open(assets_dir / row["name"]) as source:
+            tile = ImageOps.contain(source.convert("RGBA"), (thumb_w - 20, thumb_h - 38))
+            background = Image.new("RGBA", tile.size, "#eeeeee")
+            background.alpha_composite(tile)
+            x = (index % cols) * thumb_w + (thumb_w - tile.width) // 2
+            y = 42 + (index // cols) * thumb_h
+            sheet.paste(background.convert("RGB"), (x, y))
+            draw.text((index % cols * thumb_w + 8, y + thumb_h - 30), row["name"][:28], fill="white")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    sheet.save(output, format="JPEG", quality=92)
+
+
+def prepare_reference_sheets(project: dict, project_root: Path) -> list[str]:
+    if spec_key(project) != "spdesign":
+        return []
+    report = inspect_project(project, project_root)
+    if not report["ready"]:
+        return []
+    style = [row for row in report["images"] if row["transparent"]][:5]
+    heads = [row for row in report["images"] if not row["transparent"]][:6]
+    target = project_root / "generated-inputs"
+    style_path = target / "spdesign-style-references.jpg"
+    heads_path = target / "spdesign-head-references.jpg"
+    _contact_sheet(style, project_root / "assets", style_path, "Style references (5 originals)")
+    _contact_sheet(heads, project_root / "assets", heads_path, "Frontal head references (6 originals)")
+    return [str(style_path.relative_to(project_root)), str(heads_path.relative_to(project_root))]

@@ -1,0 +1,174 @@
+{
+  "source_zip_sha256": "0561cfc9244632e8ea70f4f949ac64246575d83f4d9d71b7c1ef346ee6b1df2e",
+  "original_files": [
+    {
+      "original_path": "skills/adventure-reader/SKILL.md",
+      "original_sha256": "e6ae92e90ab2d56a40411af1e1fa2eb3d90bece0291f41181c89c9087a0af186",
+      "evidence_path": "skills/adventure-reader/SKILL.md",
+      "evidence_matches_original": true
+    },
+    {
+      "original_path": "skills/adventure-reader/assets/games.js",
+      "original_sha256": "0a762ff637d27273e5711a2042d7c79d462dc68509d7bfca7a90f175b7e3227f",
+      "evidence_path": "skills/adventure-reader/assets/games.js",
+      "evidence_matches_original": true
+    },
+    {
+      "original_path": "skills/adventure-reader/assets/recall.js",
+      "original_sha256": "aca60fe2ab7c17ea6096aeb8c4aa6349775a11d54872652bd5426a7e06c42f6a",
+      "evidence_path": "skills/adventure-reader/assets/recall.js",
+      "evidence_matches_original": true
+    },
+    {
+      "original_path": "skills/adventure-reader/assets/stage.css",
+      "original_sha256": "bfcbcfa473246401f3602dc566d2b927a29353203d395ffe0fb4bc36a101e43e",
+      "evidence_path": "skills/adventure-reader/assets/stage.css",
+      "evidence_matches_original": true
+    },
+    {
+      "original_path": "skills/adventure-reader/assets/stage.js",
+      "original_sha256": "4bc18f98a65c20a5553f4d15f738dc812378cb2542da172c6ce4ac55f2dd6f7e",
+      "evidence_path": "skills/adventure-reader/assets/stage.js",
+      "evidence_matches_original": true
+    },
+    {
+      "original_path": "skills/adventure-reader/references/book-schema.md",
+      "original_sha256": "e1996ee8628aa9aef06f7ef2b477f2725651f7b05cf4638cbdc0f8ee16552b88",
+      "evidence_path": "skills/adventure-reader/references/book-schema.md",
+      "evidence_matches_original": true
+    },
+    {
+      "original_path": "skills/adventure-reader/references/example-book.json",
+      "original_sha256": "9db0751f95394ba32f79166ae45166d34e61c97112f0d4eba01a969a4ed33525",
+      "evidence_path": "skills/adventure-reader/references/example-book.json",
+      "evidence_matches_original": true
+    },
+    {
+      "original_path": "skills/adventure-reader/scripts/playtest.js",
+      "original_sha256": "624c08f02d068c0de4ce069c3bdd58cd911b520d877546bab911e2ab4f249004",
+      "evidence_path": "skills/adventure-reader/scripts/playtest.js",
+      "evidence_matches_original": true
+    },
+    {
+      "original_path": "skills/adventure-reader/scripts/validate.py",
+      "original_sha256": "90cc56717c13022a00f144a65cbda85b7f9c0598ae0b8a08ceb5e97f7662e24b",
+      "evidence_path": "skills/adventure-reader/scripts/validate.py",
+      "evidence_matches_original": true
+    },
+    {
+      "original_path": "tests/test_reader_import.py",
+      "original_sha256": "04cc086b9f173d59ccd43f4a3756f9581d2b46263dbcdbd5c4839bd403de3636",
+      "evidence_path": "evidence/original-source/tests/test_reader_import.py.txt",
+      "evidence_matches_original": true
+    },
+    {
+      "original_path": "content.py",
+      "original_sha256": "37afad20bf8b779d82a8a434e7a183954197923ec4088737cfd618fd20b46a7d",
+      "evidence_path": "evidence/original-source/content.py.txt",
+      "evidence_matches_original": true
+    },
+    {
+      "original_path": "curriculum.py",
+      "original_sha256": "c91015d99bbfe88395c6232ddf189752bc4cf77c27306410cd8913413a23c93e",
+      "evidence_path": "evidence/original-source/curriculum.py.txt",
+      "evidence_matches_original": true
+    },
+    {
+      "original_path": "harness_runtime.py",
+      "original_sha256": "6a2e110ee7b9a703e66201c5f1ea02087483b49cd8b9161e6cab2caadf281b62",
+      "evidence_path": "evidence/original-source/harness_runtime.py.txt",
+      "evidence_matches_original": true
+    },
+    {
+      "original_path": "library.py",
+      "original_sha256": "58be3b1a4e835f552ebc2211e21ab429f24f96e8aa84da2b2384f7f1397137c0",
+      "evidence_path": "evidence/original-source/library.py.txt",
+      "evidence_matches_original": true
+    },
+    {
+      "original_path": "port_games.py",
+      "original_sha256": "190cd85ece6dce97bf0169f10e76e208552aaae4d389cb7cca0b77c6860fcf0f",
+      "evidence_path": "evidence/original-source/port_games.py.txt",
+      "evidence_matches_original": true
+    },
+    {
+      "original_path": "quality_review.py",
+      "original_sha256": "75a33a2260ed764885c58da4f36725b006b92aab92aba738699688410162eb36",
+      "evidence_path": "evidence/original-source/quality_review.py.txt",
+      "evidence_matches_original": true
+    },
+    {
+      "original_path": "reader_imports.py",
+      "original_sha256": "6742016ed083206ecb74f2bbf8b1ce3801e442aa4bd8c59208127e275c2d062a",
+      "evidence_path": "evidence/original-source/reader_imports.py.txt",
+      "evidence_matches_original": true
+    },
+    {
+      "original_path": "README-PHASE1.txt",
+      "original_sha256": "0d4b79bf9d95e94be08a69c1a9d12350d3bd6136baa776d038686d365f1db023",
+      "evidence_path": "evidence/original-source/README-PHASE1.txt.txt",
+      "evidence_matches_original": true
+    },
+    {
+      "original_path": "requirements-reader.txt",
+      "original_sha256": "cee0ea1936feeb4ca47df80144b1a2d56e649cd6fef5eb9987256cd4f2308b3d",
+      "evidence_path": "evidence/original-source/requirements-reader.txt.txt",
+      "evidence_matches_original": true
+    },
+    {
+      "original_path": "run_stats.py",
+      "original_sha256": "d50551aee1556205fd00d4c2b79e5165a658da304337c8d927a0b12a780153e5",
+      "evidence_path": "evidence/original-source/run_stats.py.txt",
+      "evidence_matches_original": true
+    },
+    {
+      "original_path": "security.py",
+      "original_sha256": "7f2d673781261a6c0f8216d5650d333bece0f9846b9285cf78c1ec99f71e4fa2",
+      "evidence_path": "evidence/original-source/security.py.txt",
+      "evidence_matches_original": true
+    },
+    {
+      "original_path": "SHA256MANIFEST.txt",
+      "original_sha256": "009328617a8f617d9d1168344697a100193029c9654ca8531a4746d11434c217",
+      "evidence_path": "evidence/original-source/SHA256MANIFEST.txt.txt",
+      "evidence_matches_original": true
+    },
+    {
+      "original_path": "skill_registry.py",
+      "original_sha256": "74e5e4184628a4f75dc5871864147debb72d16b42010c0dfb482217eb1e3b6fd",
+      "evidence_path": "evidence/original-source/skill_registry.py.txt",
+      "evidence_matches_original": true
+    },
+    {
+      "original_path": "storage.py",
+      "original_sha256": "0937d040006930e0177b99b930c0e009a26b2489a9c296ed75d2c136b7d445fb",
+      "evidence_path": "evidence/original-source/storage.py.txt",
+      "evidence_matches_original": true
+    },
+    {
+      "original_path": "studio.py",
+      "original_sha256": "8f7cc2457821b208382c02b721861aa07842419a437c4204979abbe55713bff0",
+      "evidence_path": "evidence/original-source/studio.py.txt",
+      "evidence_matches_original": true
+    },
+    {
+      "original_path": "task_specs.py",
+      "original_sha256": "181efebd0852b6b77d903c0943eb8656552e7da1b4518809e904684776693654",
+      "evidence_path": "evidence/original-source/task_specs.py.txt",
+      "evidence_matches_original": true
+    },
+    {
+      "original_path": "users.py",
+      "original_sha256": "9951b5908779b752b197ada7ab682e3e1bfd58c6e296b630d030476616aa6fd2",
+      "evidence_path": "evidence/original-source/users.py.txt",
+      "evidence_matches_original": true
+    }
+  ],
+  "quality_function_ast_match": {
+    "_report_gate": true,
+    "_book_checker": true,
+    "_review_book": true,
+    "revision_prompt": true
+  },
+  "production_acceptance": "pending dedicated deployment workflow; no accepted gate modified"
+}

@@ -1,0 +1,387 @@
+"""File-backed storage for shared HTML pages.
+
+Each page is stored as two files under data/pages/:
+  {id}.html  - the raw HTML document served into the sandbox iframe
+  {id}.json  - metadata (title, size, created, kind)
+
+No database; the directory is the source of truth.
+"""
+from __future__ import annotations
+
+import json
+import re
+import secrets
+import time
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
+from typing import List, Optional
+
+import content
+
+BASE_DIR = Path(__file__).resolve().parent
+PAGES_DIR = BASE_DIR / "data" / "pages"
+PAGES_DIR.mkdir(parents=True, exist_ok=True)
+
+# 8 MB ceiling — covers a sombrero-scale Spine preview (~5 MB).
+MAX_HTML_BYTES = 8 * 1024 * 1024
+
+_ID_RE = re.compile(r"^[A-Za-z0-9_-]{6,32}$")
+_HTML_DOC_RE = re.compile(r"<html[\s>]", re.IGNORECASE)
+_TITLE_RE = re.compile(r"<title[^>]*>(.*?)</title>", re.IGNORECASE | re.DOTALL)
+
+
+_META_FIELDS = {
+    "id",
+    "title",
+    "kind",
+    "size",
+    "created",
+    "summary",
+    "outline",
+    "stats",
+    "features",
+    "owner_id",
+    "module",
+    "brief",
+    "project_id",
+}
+
+
+@dataclass
+class PageMeta:
+    id: str
+    title: str
+    kind: str          # "spine" | "html"
+    size: int          # bytes of stored HTML
+    created: float     # epoch seconds
+    summary: str = ""
+    outline: List[dict] = field(default_factory=list)
+    stats: dict = field(default_factory=dict)
+    features: dict = field(default_factory=dict)
+    owner_id: str = ""
+    module: str = ""       # studio module when published from a task
+    brief: str = ""        # project brief snippet for search
+    project_id: str = ""   # originating studio project
+
+    @property
+    def created_iso(self) -> str:
+        return time.strftime("%Y-%m-%d %H:%M", time.localtime(self.created))
+
+
+def _new_id() -> str:
+    # 9 url-safe chars, unguessable enough for a non-public share link.
+    return secrets.token_urlsafe(7)[:9]
+
+
+def is_valid_id(page_id: str) -> bool:
+    return bool(_ID_RE.match(page_id or ""))
+
+
+def _detect_kind(html: str) -> str:
+    return "spine" if "spine-player" in html else "html"
+
+
+def _extract_title(html: str, fallback: str) -> str:
+    m = _TITLE_RE.search(html)
+    if m:
+        # Drop U+FFFD replacement chars from titles decoded out of non-UTF-8 files.
+        title = re.sub(r"\s+", " ", m.group(1).replace("\ufffd", "")).strip()
+        if title:
+            return title[:120]
+    return fallback
+
+
+def is_full_document(html: str) -> bool:
+    return bool(_HTML_DOC_RE.search(html))
+
+
+def _escape(text: str) -> str:
+    return (
+        text.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+    )
+
+
+def wrap_fragment(html: str, title: str = "HTML 组件") -> str:
+    """Wrap a bare component fragment in a minimal HTML document.
+
+    Full documents (containing <html>) are returned unchanged so self-contained
+    pages like the Spine preview keep working verbatim.
+    """
+    if is_full_document(html):
+        return html
+    safe_title = _escape(title or "HTML 组件")
+    return (
+        "<!DOCTYPE html>\n"
+        '<html lang="zh-CN">\n<head>\n'
+        '<meta charset="UTF-8">\n'
+        '<meta name="viewport" content="width=device-width, initial-scale=1.0">\n'
+        f"<title>{safe_title}</title>\n"
+        "<style>body{margin:0;padding:16px;font-family:-apple-system,"
+        "BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;}</style>\n"
+        "</head>\n<body>\n"
+        f"{html}\n"
+        "</body>\n</html>\n"
+    )
+
+
+def _meta_path(page_id: str) -> Path:
+    return PAGES_DIR / f"{page_id}.json"
+
+
+def _html_path(page_id: str) -> Path:
+    return PAGES_DIR / f"{page_id}.html"
+
+
+class PageTooLargeError(ValueError):
+    pass
+
+
+class EmptyPageError(ValueError):
+    pass
+
+
+def save_page(
+    html: str,
+    title: Optional[str] = None,
+    owner_id: str = "",
+    *,
+    module: str = "",
+    brief: str = "",
+    project_id: str = "",
+) -> PageMeta:
+    html = (html or "").strip()
+    if not html:
+        raise EmptyPageError("HTML 内容为空")
+
+    # Resolve the title from the original content first so an explicit title or
+    # filename is not shadowed by the wrapper's own <title>.
+    resolved_title = _extract_title(html, (title or "").strip() or "未命名 HTML")
+
+    html = wrap_fragment(html, title=resolved_title)
+    encoded = html.encode("utf-8")
+    if len(encoded) > MAX_HTML_BYTES:
+        raise PageTooLargeError(
+            f"HTML 超过上限 {MAX_HTML_BYTES // (1024 * 1024)}MB"
+        )
+
+    page_id = _new_id()
+    while _meta_path(page_id).exists():
+        page_id = _new_id()
+
+    analysis = content.analyze_html(html)
+
+    meta = PageMeta(
+        id=page_id,
+        title=resolved_title,
+        kind=analysis.get("kind") or _detect_kind(html),
+        size=len(encoded),
+        created=time.time(),
+        summary=analysis.get("summary", ""),
+        outline=analysis.get("outline", []),
+        stats=analysis.get("stats", {}),
+        features=analysis.get("features", {}),
+        owner_id=(owner_id or "").strip(),
+        module=(module or "").strip()[:40],
+        brief=(brief or "").strip()[:500],
+        project_id=(project_id or "").strip()[:32],
+    )
+    _html_path(page_id).write_bytes(encoded)
+    _write_meta(meta)
+    return meta
+
+
+def update_page(
+    page_id: str,
+    html: str,
+    title: Optional[str] = None,
+    owner_id: str = "",
+    *,
+    module: str = "",
+    brief: str = "",
+    project_id: str = "",
+) -> Optional[PageMeta]:
+    """Overwrite an existing share in place. Same id, same URL."""
+    meta = get_meta(page_id)
+    if meta is None:
+        return None
+    html = (html or "").strip()
+    if not html:
+        raise EmptyPageError("HTML 内容为空")
+    resolved_title = _extract_title(html, (title or "").strip() or meta.title or "未命名 HTML")
+    html = wrap_fragment(html, title=resolved_title)
+    encoded = html.encode("utf-8")
+    if len(encoded) > MAX_HTML_BYTES:
+        raise PageTooLargeError(
+            f"HTML 超过上限 {MAX_HTML_BYTES // (1024 * 1024)}MB"
+        )
+    analysis = content.analyze_html(html)
+    meta.title = resolved_title
+    meta.kind = analysis.get("kind") or _detect_kind(html)
+    meta.size = len(encoded)
+    meta.summary = analysis.get("summary", "")
+    meta.outline = analysis.get("outline", [])
+    meta.stats = analysis.get("stats", {})
+    meta.features = analysis.get("features", {})
+    if owner_id:
+        meta.owner_id = owner_id.strip()
+    if module:
+        meta.module = module.strip()[:40]
+    if brief:
+        meta.brief = brief.strip()[:500]
+    if project_id:
+        meta.project_id = project_id.strip()[:32]
+    _html_path(page_id).write_bytes(encoded)
+    _write_meta(meta)
+    return meta
+
+
+def _write_meta(meta: PageMeta) -> None:
+    _meta_path(meta.id).write_text(
+        json.dumps(asdict(meta), ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+def get_meta(page_id: str) -> Optional[PageMeta]:
+    if not is_valid_id(page_id):
+        return None
+    path = _meta_path(page_id)
+    if not path.exists():
+        return None
+    data = json.loads(path.read_text(encoding="utf-8"))
+    # Drop unknown keys for forward/backward compatibility.
+    meta = PageMeta(**{k: v for k, v in data.items() if k in _META_FIELDS})
+    # Lazily backfill analysis for pages stored before content extraction existed.
+    if not meta.summary and not meta.outline:
+        html = get_html(page_id)
+        if html:
+            analysis = content.analyze_html(html)
+            meta.summary = analysis.get("summary", "")
+            meta.outline = analysis.get("outline", [])
+            meta.stats = analysis.get("stats", {})
+            meta.features = analysis.get("features", {})
+            if analysis.get("kind"):
+                meta.kind = analysis["kind"]
+            _write_meta(meta)
+    return meta
+
+
+def get_html(page_id: str) -> Optional[str]:
+    if not is_valid_id(page_id):
+        return None
+    path = _html_path(page_id)
+    if not path.exists():
+        return None
+    return path.read_text(encoding="utf-8")
+
+
+def list_pages(limit: int = 50, owner_id: Optional[str] = None) -> List[PageMeta]:
+    metas: List[PageMeta] = []
+    for path in PAGES_DIR.glob("*.json"):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            meta = PageMeta(**{k: v for k, v in data.items() if k in _META_FIELDS})
+        except (json.JSONDecodeError, TypeError):
+            continue
+        if owner_id and meta.owner_id != owner_id:
+            continue
+        metas.append(meta)
+    metas.sort(key=lambda m: m.created, reverse=True)
+    return metas[:limit]
+
+
+def list_featured_pages(limit: int = 5) -> List[PageMeta]:
+    """Rank recent pages by content richness for the homepage showcase."""
+    metas = list_pages(limit=50)
+
+    def quality(meta: PageMeta) -> tuple[int, float]:
+        stats = meta.stats or {}
+        features = meta.features or {}
+        score = 0
+        score += 8 if meta.kind == "spine" else 0
+        score += min(int(stats.get("interactive", 0) or 0), 12) * 4
+        score += min(int(stats.get("scripts", 0) or 0), 6) * 2
+        score += min(int(stats.get("headings", 0) or 0), 8)
+        score += min(int(stats.get("words", 0) or 0) // 150, 6)
+        score += 5 if features.get("canvas") else 0
+        score += 3 if features.get("media") else 0
+        score += 2 if features.get("form") else 0
+        score += 1 if meta.summary else 0
+        return score, meta.created
+
+    metas.sort(key=quality, reverse=True)
+    return metas[:limit]
+
+
+def _normalize_query(query: str) -> list[str]:
+    text = re.sub(r"\s+", " ", (query or "").strip().lower())
+    if not text:
+        return []
+    return [part for part in text.split(" ") if part]
+
+
+def page_search_blob(meta: PageMeta, extra: Optional[dict] = None) -> str:
+    """Flatten searchable text for a public share page."""
+    extra = extra or {}
+    parts = [
+        meta.title,
+        meta.summary,
+        meta.kind,
+        meta.module,
+        meta.brief,
+        meta.project_id,
+        extra.get("project_title", ""),
+        extra.get("brief", ""),
+        extra.get("module", ""),
+        extra.get("module_title", ""),
+        extra.get("track", ""),
+    ]
+    return " ".join(str(part or "") for part in parts).lower()
+
+
+def search_pages(
+    query: str = "",
+    *,
+    module: str = "",
+    kind: str = "",
+    limit: int = 40,
+    extras: Optional[dict] = None,
+) -> List[PageMeta]:
+    """Search all public shared pages by title / summary / module / brief.
+
+    ``extras`` maps page_id → dict of additional searchable fields (e.g. studio
+    project title/brief) so older pages without stamped metadata still match.
+    """
+    tokens = _normalize_query(query)
+    module = (module or "").strip().lower()
+    kind = (kind or "").strip().lower()
+    extras = extras or {}
+    limit = max(1, min(int(limit or 40), 100))
+
+    scored: list[tuple[int, float, PageMeta]] = []
+    for meta in list_pages(limit=500):
+        if module and (meta.module or extras.get(meta.id, {}).get("module", "")).lower() != module:
+            continue
+        if kind and meta.kind.lower() != kind:
+            continue
+        blob = page_search_blob(meta, extras.get(meta.id))
+        if tokens and not all(token in blob for token in tokens):
+            continue
+        rank = 0
+        if tokens:
+            title = (meta.title or "").lower()
+            for token in tokens:
+                if token in title:
+                    rank += 8
+                if token in (meta.summary or "").lower():
+                    rank += 3
+                if token in (meta.brief or "").lower():
+                    rank += 2
+                if token in (meta.module or "").lower():
+                    rank += 4
+        scored.append((rank, meta.created, meta))
+
+    scored.sort(key=lambda row: (row[0], row[1]), reverse=True)
+    return [meta for _, _, meta in scored[:limit]]

@@ -1,0 +1,415 @@
+"""Studio skill curriculum: required defaults plus quiz/task unlocks."""
+from __future__ import annotations
+
+from typing import Optional
+
+DEFAULT_SKILLS = ("html-builder", "image-review")
+
+SKILL_META = {
+    "html-builder": {
+        "module": "text",
+        "availability": "default",
+        "title": "互动网页",
+        "task": "",
+    },
+    "image-review": {
+        "module": "",
+        "availability": "default",
+        "title": "图像审查",
+        "task": "",
+    },
+    "zdog": {
+        "module": "zdog",
+        "availability": "unlockable",
+        "title": "Zdog 伪 3D",
+        "task": "完成一个文本构建作品",
+        "complete_any": ["text"],
+    },
+    "colorfigures": {
+        "module": "colorfigures",
+        "availability": "default",
+        "title": "彩墨物件",
+        "task": "",
+    },
+    "exhibit-card": {
+        "module": "exhibit-card",
+        "availability": "unlockable",
+        "title": "馆藏卡片",
+        "task": "完成一个文本构建作品",
+        "complete_any": ["text"],
+    },
+    "spdesign": {
+        "module": "style-image",
+        "availability": "unlockable",
+        "title": "spDesign 风格头像",
+        "task": "完成一个 Zdog 伪 3D 作品",
+        "complete_any": ["zdog"],
+    },
+    "dtdesign": {
+        "module": "style-image",
+        "availability": "unlockable",
+        "title": "DTdesign 全身角色",
+        "task": "完成一个 Zdog 伪 3D 作品",
+        "complete_any": ["zdog"],
+    },
+    "spine-animation": {
+        "module": "animation",
+        "availability": "unlockable",
+        "title": "图像动画生成",
+        "task": "完成一个风格角色作品",
+        "complete_any": ["style-image"],
+    },
+    "3d-game-dev": {
+        "module": "game",
+        "availability": "unlockable",
+        "title": "游戏 DIY",
+        "task": "完成动画或伪 3D 作品",
+        "complete_any": ["animation", "zdog"],
+    },
+    "knowledge-travel": {
+        "module": "knowledge-travel",
+        "availability": "unlockable",
+        "title": "知识穿越答题",
+        "task": "完成一个文本构建或馆藏卡片作品",
+        "complete_any": ["text", "exhibit-card"],
+    },
+    "wrong-answer-anim": {
+        "module": "wrong-answer",
+        "availability": "default",
+        "title": "错题讲解动画",
+        "task": "",
+    },
+    "atb-game-porting": {
+        "module": "game-port",
+        "availability": "default",
+        "title": "游戏搬家",
+        "task": "",
+    },
+}
+
+MODULE_SKILLS = {
+    "text": ["html-builder"],
+    "zdog": ["zdog"],
+    "colorfigures": ["colorfigures"],
+    "exhibit-card": ["exhibit-card"],
+    "style-image": ["spdesign", "dtdesign"],
+    "animation": ["spine-animation"],
+    "game": ["3d-game-dev"],
+    "knowledge-travel": ["knowledge-travel"],
+    "wrong-answer": ["wrong-answer-anim"],
+    "idea-watch": ["html-builder"],
+    "game-port": ["atb-game-porting"],
+}
+
+QUIZZES = {
+    "exhibit-card": {
+        "skill": "exhibit-card",
+        "title": "解锁馆藏卡片",
+        "pass": 2,
+        "questions": [
+            {
+                "id": "q1",
+                "prompt": "卡片上的等级标签应该放在哪里？",
+                "options": ["盖在画面一角的色带上", "悬浮在卡面上方的胶囊标签", "只写在浏览器标题栏"],
+                "answer": 1,
+            },
+            {
+                "id": "q2",
+                "prompt": "点击卡片后，原始完整 HTML 应该怎样出现？",
+                "options": ["从卡面 FLIP 放大到同一页里的原文", "打开一个新的网站标签页", "只把标题字号变大"],
+                "answer": 0,
+            },
+            {
+                "id": "q3",
+                "prompt": "原文内容默认放在哪里，才不会挤爆卡面预览？",
+                "options": ["全部写在卡面标题上", "template.origin 里，预览只用图或短摘句", "必须另存为第二个 HTML 文件再跳转"],
+                "answer": 1,
+            },
+        ],
+    },
+    "zdog": {
+        "skill": "zdog",
+        "title": "解锁 Zdog 伪 3D",
+        "pass": 2,
+        "questions": [
+            {
+                "id": "q1",
+                "prompt": "Zdog 作品必须用哪种引擎建模？",
+                "options": ["Three.js", "Zdog Illustration", "CSS 3D"],
+                "answer": 1,
+            },
+            {
+                "id": "q2",
+                "prompt": "最终预览应该让用户怎样观察形体？",
+                "options": ["只能看一张静帧", "可拖拽旋转", "必须下载 Blender"],
+                "answer": 1,
+            },
+            {
+                "id": "q3",
+                "prompt": "输出给沙箱分享时，Zdog 引擎应如何引入？",
+                "options": ["内联到 preview.html", "依赖外网随时加载失败也没关系", "写成独立 npm 包"],
+                "answer": 0,
+            },
+        ],
+    },
+    "spdesign": {
+        "skill": "spdesign",
+        "title": "解锁 spDesign",
+        "pass": 2,
+        "questions": [
+            {
+                "id": "q1",
+                "prompt": "spDesign 生成时可以只写「好看」而不传参考图吗？",
+                "options": ["可以", "不可以，必须传入风格参考图", "只需要一张自拍"],
+                "answer": 1,
+            },
+            {
+                "id": "q2",
+                "prompt": "spDesign 的主体通常是？",
+                "options": ["全身写实人物", "孤立的怪诞平面人头像", "建筑场景"],
+                "answer": 1,
+            },
+            {
+                "id": "q3",
+                "prompt": "眼睛作为冲击系统时，至少应打破哪几项？",
+                "options": ["数量、大小、形状中的两项", "只改颜色", "完全不画眼睛"],
+                "answer": 0,
+            },
+        ],
+    },
+    "dtdesign": {
+        "skill": "dtdesign",
+        "title": "解锁 DTdesign",
+        "pass": 2,
+        "questions": [
+            {
+                "id": "q1",
+                "prompt": "DTdesign 的默认体型特征是？",
+                "options": ["纤细写实比例", "夸张 T 字轮廓、宽肩宽身、极细长腿", "Q 版超大头"],
+                "answer": 1,
+            },
+            {
+                "id": "q2",
+                "prompt": "DTdesign 最少需要几张原始参考图？",
+                "options": ["1 张", "4 张", "11 张"],
+                "answer": 1,
+            },
+            {
+                "id": "q3",
+                "prompt": "该风格是否允许纯文字生图、不看参考？",
+                "options": ["允许", "禁止", "仅第一张允许"],
+                "answer": 1,
+            },
+        ],
+    },
+    "spine-animation": {
+        "skill": "spine-animation",
+        "title": "解锁图像动画生成",
+        "pass": 2,
+        "questions": [
+            {
+                "id": "q1",
+                "prompt": "完整角色图进入 Spine 流程时，第一步通常是？",
+                "options": ["直接绑定一根骨头", "先拆分成透明部件", "先导出 MP4"],
+                "answer": 1,
+            },
+            {
+                "id": "q2",
+                "prompt": "循环动作结束时应怎样？",
+                "options": ["停在任意姿态", "回到起始值", "放大角色"],
+                "answer": 1,
+            },
+            {
+                "id": "q3",
+                "prompt": "预览页应包含哪些 Spine 产物？",
+                "options": ["只要一张 PNG", "JSON + atlas + 图 + preview.html", "只有 Blender 文件"],
+                "answer": 1,
+            },
+        ],
+    },
+    "3d-game-dev": {
+        "skill": "3d-game-dev",
+        "title": "解锁游戏 DIY",
+        "pass": 2,
+        "questions": [
+            {
+                "id": "q1",
+                "prompt": "游戏 DIY 建模前必须先做什么？",
+                "options": ["直接生成整座城市", "验证 Blender MCP，并让用户确认目标图", "先写 10 个技能"],
+                "answer": 1,
+            },
+            {
+                "id": "q2",
+                "prompt": "第一版场景范围应该怎样？",
+                "options": ["开放世界", "一个桥、街道或庭院等小区域", "整颗星球"],
+                "answer": 1,
+            },
+            {
+                "id": "q3",
+                "prompt": "没有 Blender 网关时系统应如何表现？",
+                "options": ["假装已经建好", "明确阻塞并提示未配置", "改用 CSS 立方体顶替"],
+                "answer": 1,
+            },
+        ],
+    },
+    "knowledge-travel": {
+        "skill": "knowledge-travel",
+        "title": "解锁知识穿越答题",
+        "pass": 2,
+        "questions": [
+            {
+                "id": "q1",
+                "prompt": "知识穿越游戏里，未完成本关过关条件时角色可以做什么？",
+                "options": ["直接走进下一关世界", "走到关卡门前，答对或完成场景互动后才能解锁下一关", "传送到最后一关"],
+                "answer": 1,
+            },
+            {
+                "id": "q2",
+                "prompt": "某一关没有可用知识点时，正确做法是？",
+                "options": ["走到门就自动开门", "添加场景交互动画门（热点互动+爆发动画）再解锁", "删掉这一关只留文字"],
+                "answer": 1,
+            },
+            {
+                "id": "q3",
+                "prompt": "交付给沙箱分享时，正确产出是？",
+                "options": ["需要 npm 启动的 React 工程", "自包含的 outputs/preview.html（可含 report.md）", "只能本机开 Blender 才能玩"],
+                "answer": 1,
+            },
+        ],
+    },
+}
+
+
+def default_set() -> set[str]:
+    return set(DEFAULT_SKILLS)
+
+
+def unlocked_set(user) -> set[str]:
+    names = set(DEFAULT_SKILLS)
+    if user is not None:
+        names.update(user.unlocked_skills or [])
+    return names
+
+
+def is_unlocked(user, skill: str) -> bool:
+    meta = SKILL_META.get(skill)
+    if meta is None:
+        return True
+    if meta["availability"] == "default":
+        return True
+    return skill in unlocked_set(user)
+
+
+def required_skills(module: str, track: str = "") -> list[str]:
+    if module == "style-image" and track in {"spdesign", "dtdesign"}:
+        return [track]
+    return list(MODULE_SKILLS.get(module, []))
+
+
+def can_use_module(user, module: str, track: str = "") -> tuple[bool, str]:
+    if user is None:
+        return False, "请先人脸登录后再开始创作。生成完成后作品会进入你的资产库。"
+    needed = required_skills(module, track)
+    if not needed:
+        return True, ""
+    if all(is_unlocked(user, name) for name in needed):
+        return True, ""
+    if module == "style-image" and (
+        is_unlocked(user, "spdesign") or is_unlocked(user, "dtdesign")
+    ):
+        if track and not is_unlocked(user, track):
+            title = SKILL_META.get(track, {}).get("title", track)
+            return False, f"先答题或完成任务解锁 {title}"
+        return True, ""
+    locked = [SKILL_META.get(name, {}).get("title") or name for name in needed if not is_unlocked(user, name)]
+    task = SKILL_META.get(needed[0], {}).get("task") or "完成对应任务或答题"
+    return False, f"尚未解锁：{' / '.join(locked)}。{task}，或打开答题。"
+
+
+def quiz_public(skill: str) -> Optional[dict]:
+    quiz = QUIZZES.get(skill)
+    if quiz is None:
+        return None
+    return {
+        "skill": quiz["skill"],
+        "title": quiz["title"],
+        "pass": quiz["pass"],
+        "total": len(quiz["questions"]),
+        "questions": [
+            {"id": q["id"], "prompt": q["prompt"], "options": q["options"]}
+            for q in quiz["questions"]
+        ],
+    }
+
+
+def grade_quiz(skill: str, answers: dict) -> dict:
+    quiz = QUIZZES.get(skill)
+    if quiz is None:
+        raise ValueError("没有这门解锁测验")
+    score = 0
+    wrong = []
+    for question in quiz["questions"]:
+        given = answers.get(question["id"])
+        try:
+            index = int(given)
+        except (TypeError, ValueError):
+            index = -1
+        if index == question["answer"]:
+            score += 1
+        else:
+            wrong.append(question["id"])
+    return {
+        "skill": skill,
+        "score": score,
+        "total": len(quiz["questions"]),
+        "pass_score": quiz["pass"],
+        "passed": score >= quiz["pass"],
+        "wrong": wrong,
+    }
+
+
+def catalog(user) -> dict:
+    owned = unlocked_set(user)
+    skills = []
+    for name, meta in SKILL_META.items():
+        skills.append(
+            {
+                "name": name,
+                "title": meta["title"],
+                "module": meta["module"],
+                "availability": meta["availability"],
+                "unlocked": name in owned,
+                "task": meta.get("task") or "",
+                "has_quiz": name in QUIZZES,
+            }
+        )
+    return {
+        "default": list(DEFAULT_SKILLS),
+        "unlocked": sorted(owned),
+        "skills": skills,
+        "logged_in": user is not None,
+    }
+
+
+def refresh_unlocks(user_id: str) -> list[str]:
+    import studio
+    import users
+
+    user = users.get_user(user_id)
+    if user is None:
+        return []
+    completed = {
+        project.get("module")
+        for project in studio.list_projects(limit=200, owner_id=user_id)
+        if project.get("status") == "completed" and project.get("module")
+    }
+    gained = []
+    for name, meta in SKILL_META.items():
+        if meta["availability"] != "unlockable" or name in user.unlocked_skills:
+            continue
+        need = set(meta.get("complete_any") or [])
+        if need and completed.intersection(need):
+            gained.append(name)
+    if gained:
+        users.unlock_skills(user_id, gained)
+    return gained

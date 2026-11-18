@@ -1,0 +1,1444 @@
+{
+  "id": "say-no-and-steer",
+  "status": "ready",
+  "age": "青少年与成人初阶",
+  "level": "自编分级 · 短句",
+  "kicker": "GRADED READER · 青少年与成人初阶",
+  "tagline": "读完一章，做一个小决定。",
+  "blurb": "六个分级小故事，主题来自导读：掌舵、质疑、重来、本事、精通、取舍。句子是新写的，不是原书译文。",
+  "color": "#3d6b2f",
+  "book": {
+    "title": "Say No and Steer",
+    "zh": "说不，然后掌舵",
+    "author": "根据导读要点编写的分级故事",
+    "level": "自编分级 · 短句",
+    "quote": {
+      "en": "Speed is useless when you have no direction.",
+      "zh": "没有方向时，快也没有用。"
+    }
+  },
+  "chapters": [
+    {
+      "id": 1,
+      "scene": 4,
+      "title": "Hands on the Bar",
+      "zh": "双手扶把",
+      "tag": "掌舵",
+      "art": "",
+      "minutes": 4,
+      "paragraphs": [
+        {
+          "en": "Mina stands with her bicycle at the quiet park gate.",
+          "zh": "米娜把自行车停在安静的公园门口。",
+          "grammar": {
+            "title": "地点放在句尾",
+            "explain": "at the quiet park gate 说明她站在哪里，放在动作后面。",
+            "pattern": "主语 + 动词 + 地点"
+          }
+        },
+        {
+          "en": "Her feet turn the back wheel, and her hands pick the road.",
+          "zh": "她的脚转动后轮，她的手挑选道路。",
+          "grammar": {
+            "title": "and 连接两个分句",
+            "explain": "逗号后面的 and 把两个完整小句接在一起。",
+            "pattern": "小句, and 小句"
+          }
+        },
+        {
+          "en": "A loud motorcycle passes, and Mina looks away.",
+          "zh": "一辆很响的摩托车经过，米娜把视线移开了。",
+          "grammar": {
+            "title": "一般现在时叙事",
+            "explain": "passes 和 looks 用现在时，让这一幕像正在发生。",
+            "pattern": "主语 + 动词-s"
+          }
+        },
+        {
+          "en": "The bicycle spins in a circle and then stops.",
+          "zh": "自行车转了一圈，然后停住。",
+          "grammar": {
+            "title": "and then 表示先后",
+            "explain": "先 spins，后 stops，then 把顺序说清楚。",
+            "pattern": "动词 and then 动词"
+          }
+        },
+        {
+          "en": "She puts both hands on the bar and looks straight ahead.",
+          "zh": "她把两只手都放回车把上，眼睛看向前方。",
+          "grammar": {
+            "title": "both 强调两个都",
+            "explain": "both hands 表示不是一只手，而是两只手一起。",
+            "pattern": "both + 复数名词"
+          }
+        },
+        {
+          "en": "Speed is useless when you have no direction.",
+          "zh": "没有方向的时候，速度快也没有用。",
+          "grammar": {
+            "title": "when 引导条件",
+            "explain": "when you have no direction 说明在什么情况下速度没有用。",
+            "pattern": "结果 when 条件"
+          }
+        }
+      ],
+      "vocab": [
+        {
+          "w": "bicycle",
+          "pos": "n.",
+          "zh": "自行车",
+          "eg": "Mina stands with her bicycle.",
+          "egZh": "米娜和她的自行车站在一起。"
+        },
+        {
+          "w": "wheel",
+          "pos": "n.",
+          "zh": "车轮",
+          "eg": "Her feet turn the back wheel.",
+          "egZh": "她的脚转动后轮。"
+        },
+        {
+          "w": "hands",
+          "pos": "n.",
+          "zh": "双手",
+          "eg": "Her hands pick the road.",
+          "egZh": "她的手挑选道路。"
+        },
+        {
+          "w": "road",
+          "pos": "n.",
+          "zh": "道路",
+          "eg": "Her hands pick the road.",
+          "egZh": "她的手挑选道路。"
+        },
+        {
+          "w": "motorcycle",
+          "pos": "n.",
+          "zh": "摩托车",
+          "eg": "A loud motorcycle passes.",
+          "egZh": "一辆很响的摩托车经过。"
+        },
+        {
+          "w": "direction",
+          "pos": "n.",
+          "zh": "方向",
+          "eg": "You have no direction.",
+          "egZh": "你没有方向。"
+        }
+      ],
+      "quiz": [
+        {
+          "q": "Where does Mina stand?",
+          "options": [
+            "At the park gate",
+            "In a store",
+            "On a roof"
+          ],
+          "answer": 0,
+          "zh": "米娜站在哪里？"
+        },
+        {
+          "q": "What picks the road?",
+          "options": [
+            "Her feet",
+            "Her hands",
+            "The motorcycle"
+          ],
+          "answer": 1,
+          "zh": "是什么在选路？"
+        }
+      ],
+      "game": {
+        "title": "Pick the Path",
+        "zh": "选一条路",
+        "intro": {
+          "en": "Type the missing words from this chapter.",
+          "zh": "把这一章挖掉的词写回去。"
+        },
+        "recall": [
+          {
+            "id": "v-bicycle-1",
+            "kind": "vocab",
+            "prompt": "自行车",
+            "sentence": "Mina stands with her ____.",
+            "answer": "bicycle",
+            "hint": "n. 本章核心词。"
+          },
+          {
+            "id": "v-wheel-2",
+            "kind": "vocab",
+            "prompt": "车轮",
+            "sentence": "Her feet turn the back ____.",
+            "answer": "wheel",
+            "hint": "n. 本章核心词。"
+          },
+          {
+            "id": "v-hands-3",
+            "kind": "vocab",
+            "prompt": "双手",
+            "sentence": "Her ____ pick the road.",
+            "answer": "hands",
+            "hint": "n. 本章核心词。"
+          },
+          {
+            "id": "v-road-4",
+            "kind": "vocab",
+            "prompt": "道路",
+            "sentence": "Her hands pick the ____.",
+            "answer": "road",
+            "hint": "n. 本章核心词。"
+          },
+          {
+            "id": "v-motorcycle-5",
+            "kind": "vocab",
+            "prompt": "摩托车",
+            "sentence": "A loud ____ passes.",
+            "answer": "motorcycle",
+            "hint": "n. 本章核心词。"
+          },
+          {
+            "id": "v-direction-6",
+            "kind": "vocab",
+            "prompt": "方向",
+            "sentence": "You have no ____.",
+            "answer": "direction",
+            "hint": "n. 本章核心词。"
+          },
+          {
+            "id": "g-1",
+            "kind": "grammar",
+            "prompt": "地点放在句尾",
+            "sentence": "Mina stands with her bicycle ____.",
+            "answer": "at the quiet park gate",
+            "hint": "at the quiet park gate 说明她站在哪里，放在动作后面。"
+          },
+          {
+            "id": "g-2",
+            "kind": "grammar",
+            "prompt": "and 连接两个分句",
+            "sentence": "Her feet turn the back wheel, ____ her hands pick the road.",
+            "answer": "and",
+            "hint": "逗号后面的 and 把两个完整小句接在一起。"
+          },
+          {
+            "id": "g-3",
+            "kind": "grammar",
+            "prompt": "一般现在时叙事",
+            "sentence": "A loud motorcycle ____, and Mina looks away.",
+            "answer": "passes",
+            "hint": "passes 和 looks 用现在时，让这一幕像正在发生。"
+          },
+          {
+            "id": "g-4",
+            "kind": "grammar",
+            "prompt": "and then 表示先后",
+            "sentence": "The bicycle spins in a circle ____ stops.",
+            "answer": "and then",
+            "hint": "先 spins，后 stops，then 把顺序说清楚。"
+          },
+          {
+            "id": "g-5",
+            "kind": "grammar",
+            "prompt": "both 强调两个都",
+            "sentence": "She puts ____ hands on the bar and looks straight ahead.",
+            "answer": "both",
+            "hint": "both hands 表示不是一只手，而是两只手一起。"
+          },
+          {
+            "id": "g-6",
+            "kind": "grammar",
+            "prompt": "when 引导条件",
+            "sentence": "Speed is useless ____.",
+            "answer": "when you have no direction",
+            "hint": "when you have no direction 说明在什么情况下速度没有用。"
+          }
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "scene": 5,
+      "title": "A Second Opinion",
+      "zh": "再问一次",
+      "tag": "质疑",
+      "art": "",
+      "minutes": 4,
+      "paragraphs": [
+        {
+          "en": "Leo stops under a loud poster in the school hall.",
+          "zh": "利奥停在学校走廊里一张很醒目的海报下面。",
+          "grammar": {
+            "title": "under 表示正下方",
+            "explain": "under a loud poster 说明他站的位置，不是海报里面。",
+            "pattern": "动词 + under + 名词"
+          }
+        },
+        {
+          "en": "The poster says a famous name opens every door.",
+          "zh": "海报上写着：一个有名的名字能打开每一扇门。",
+          "grammar": {
+            "title": "says 后面接说法",
+            "explain": "says 后面直接接别人声称的内容，这里没有 that。",
+            "pattern": "主语 says + 小句"
+          }
+        },
+        {
+          "en": "Leo says no and asks a teacher for a second opinion.",
+          "zh": "利奥说不，并向一位老师再征求一次看法。",
+          "grammar": {
+            "title": "ask somebody for",
+            "explain": "ask a teacher for 表示向老师要一样东西，这里要的是 opinion。",
+            "pattern": "ask + 人 + for + 事物"
+          }
+        },
+        {
+          "en": "The teacher points to a thin useful book.",
+          "zh": "老师指向一本又薄又有用的书。",
+          "grammar": {
+            "title": "两个形容词叠在名词前",
+            "explain": "thin 说厚薄，useful 说用处，都放在 book 前面。",
+            "pattern": "形容词 + 形容词 + 名词"
+          }
+        },
+        {
+          "en": "Leo writes notes beside the lines he can use.",
+          "zh": "利奥在自己用得上的那几行旁边写下笔记。",
+          "grammar": {
+            "title": "定语从句省略 that",
+            "explain": "he can use 修饰 lines，口语里常把 that 省掉。",
+            "pattern": "名词 + 主语 + can + 动词"
+          }
+        },
+        {
+          "en": "A person, not a poster, hands him the next chance.",
+          "zh": "把下一个机会递给他的是一个人，不是一张海报。",
+          "grammar": {
+            "title": "not 用来对照",
+            "explain": "A person, not a poster 先说是谁，再排除不是谁。",
+            "pattern": "A, not B"
+          }
+        }
+      ],
+      "vocab": [
+        {
+          "w": "poster",
+          "pos": "n.",
+          "zh": "海报",
+          "eg": "Leo stops under a loud poster.",
+          "egZh": "利奥停在一张醒目的海报下面。"
+        },
+        {
+          "w": "name",
+          "pos": "n.",
+          "zh": "名字",
+          "eg": "A famous name opens every door.",
+          "egZh": "一个有名的名字能打开每一扇门。"
+        },
+        {
+          "w": "teacher",
+          "pos": "n.",
+          "zh": "老师",
+          "eg": "He asks a teacher for a second opinion.",
+          "egZh": "他向一位老师再问一次。"
+        },
+        {
+          "w": "opinion",
+          "pos": "n.",
+          "zh": "看法",
+          "eg": "Leo asks for a second opinion.",
+          "egZh": "利奥再征求一次看法。"
+        },
+        {
+          "w": "book",
+          "pos": "n.",
+          "zh": "书",
+          "eg": "The teacher points to a useful book.",
+          "egZh": "老师指向一本有用的书。"
+        },
+        {
+          "w": "notes",
+          "pos": "n.",
+          "zh": "笔记",
+          "eg": "Leo writes notes beside the lines.",
+          "egZh": "利奥在那几行旁边写笔记。"
+        }
+      ],
+      "quiz": [
+        {
+          "q": "Where does Leo stop?",
+          "options": [
+            "In the school hall",
+            "At a park gate",
+            "In a store"
+          ],
+          "answer": 0,
+          "zh": "利奥停在哪里？"
+        },
+        {
+          "q": "What does Leo write?",
+          "options": [
+            "A poster",
+            "A song",
+            "Notes"
+          ],
+          "answer": 2,
+          "zh": "利奥写了什么？"
+        }
+      ],
+      "game": {
+        "title": "Check the Poster",
+        "zh": "核对海报",
+        "intro": {
+          "en": "Type the missing words from this chapter.",
+          "zh": "把这一章挖掉的词写回去。"
+        },
+        "recall": [
+          {
+            "id": "v-poster-1",
+            "kind": "vocab",
+            "prompt": "海报",
+            "sentence": "Leo stops under a loud ____.",
+            "answer": "poster",
+            "hint": "n. 本章核心词。"
+          },
+          {
+            "id": "v-name-2",
+            "kind": "vocab",
+            "prompt": "名字",
+            "sentence": "A famous ____ opens every door.",
+            "answer": "name",
+            "hint": "n. 本章核心词。"
+          },
+          {
+            "id": "v-teacher-3",
+            "kind": "vocab",
+            "prompt": "老师",
+            "sentence": "He asks a ____ for a second opinion.",
+            "answer": "teacher",
+            "hint": "n. 本章核心词。"
+          },
+          {
+            "id": "v-opinion-4",
+            "kind": "vocab",
+            "prompt": "看法",
+            "sentence": "Leo asks for a second ____.",
+            "answer": "opinion",
+            "hint": "n. 本章核心词。"
+          },
+          {
+            "id": "v-book-5",
+            "kind": "vocab",
+            "prompt": "书",
+            "sentence": "The teacher points to a useful ____.",
+            "answer": "book",
+            "hint": "n. 本章核心词。"
+          },
+          {
+            "id": "v-notes-6",
+            "kind": "vocab",
+            "prompt": "笔记",
+            "sentence": "Leo writes ____ beside the lines.",
+            "answer": "notes",
+            "hint": "n. 本章核心词。"
+          },
+          {
+            "id": "g-1",
+            "kind": "grammar",
+            "prompt": "under 表示正下方",
+            "sentence": "Leo stops ____ a loud poster in the school hall.",
+            "answer": "under",
+            "hint": "under a loud poster 说明他站的位置，不是海报里面。"
+          },
+          {
+            "id": "g-2",
+            "kind": "grammar",
+            "prompt": "says 后面接说法",
+            "sentence": "The poster ____ a famous name opens every door.",
+            "answer": "says",
+            "hint": "says 后面直接接别人声称的内容，这里没有 that。"
+          },
+          {
+            "id": "g-3",
+            "kind": "grammar",
+            "prompt": "ask somebody for",
+            "sentence": "Leo says no and ____ a second opinion.",
+            "answer": "asks a teacher for",
+            "hint": "ask a teacher for 表示向老师要一样东西，这里要的是 opinion。"
+          },
+          {
+            "id": "g-4",
+            "kind": "grammar",
+            "prompt": "两个形容词叠在名词前",
+            "sentence": "The teacher points to a ____ book.",
+            "answer": "thin useful",
+            "hint": "thin 说厚薄，useful 说用处，都放在 book 前面。"
+          },
+          {
+            "id": "g-5",
+            "kind": "grammar",
+            "prompt": "定语从句省略 that",
+            "sentence": "Leo writes notes beside the lines ____.",
+            "answer": "he can use",
+            "hint": "he can use 修饰 lines，口语里常把 that 省掉。"
+          },
+          {
+            "id": "g-6",
+            "kind": "grammar",
+            "prompt": "not 用来对照",
+            "sentence": "A person, ____, hands him the next chance.",
+            "answer": "not a poster",
+            "hint": "A person, not a poster 先说是谁，再排除不是谁。"
+          }
+        ]
+      }
+    },
+    {
+      "id": 3,
+      "scene": 8,
+      "title": "Start from Zero",
+      "zh": "从零开始",
+      "tag": "重来",
+      "art": "",
+      "minutes": 4,
+      "paragraphs": [
+        {
+          "en": "Rain fills the dark alley behind the station.",
+          "zh": "雨落在车站后面那条暗巷里。",
+          "grammar": {
+            "title": "behind 表示在后面",
+            "explain": "behind the station 把巷子的位置说清楚。",
+            "pattern": "名词 + behind + 地点"
+          }
+        },
+        {
+          "en": "Nia waits there and blames the weather.",
+          "zh": "尼娅等在那里，把原因怪到天气头上。",
+          "grammar": {
+            "title": "and 连接两个动作",
+            "explain": "waits 和 blames 共用主语 Nia。",
+            "pattern": "主语 + 动词 and 动词"
+          }
+        },
+        {
+          "en": "She closes her pride and starts again from zero.",
+          "zh": "她放下傲气，从零再开始。",
+          "grammar": {
+            "title": "again 表示重来",
+            "explain": "starts again 不是第一次开始，而是重新来过。",
+            "pattern": "动词 + again"
+          }
+        },
+        {
+          "en": "A small lamp marks the next dry step.",
+          "zh": "一盏小灯标出下一步干的地方。",
+          "grammar": {
+            "title": "next 放在名词前",
+            "explain": "next dry step 是紧接着的那一步，不是任意一步。",
+            "pattern": "next + 名词"
+          }
+        },
+        {
+          "en": "Nia reads one hard page before she sleeps.",
+          "zh": "尼娅睡觉前读完难的一页。",
+          "grammar": {
+            "title": "before 表示在某事之前",
+            "explain": "before she sleeps 限定读书发生的时间。",
+            "pattern": "动作 + before + 小句"
+          }
+        },
+        {
+          "en": "She cannot see next year, so she uses this hour.",
+          "zh": "她看不见明年，所以用好这一个小时。",
+          "grammar": {
+            "title": "so 表示所以",
+            "explain": "前面是原因，so 后面是她因此做出的行动。",
+            "pattern": "原因, so 结果"
+          }
+        }
+      ],
+      "vocab": [
+        {
+          "w": "alley",
+          "pos": "n.",
+          "zh": "小巷",
+          "eg": "Rain fills the dark alley.",
+          "egZh": "雨落在暗巷里。"
+        },
+        {
+          "w": "pride",
+          "pos": "n.",
+          "zh": "傲气",
+          "eg": "She closes her pride.",
+          "egZh": "她放下傲气。"
+        },
+        {
+          "w": "zero",
+          "pos": "n.",
+          "zh": "零点",
+          "eg": "She starts again from zero.",
+          "egZh": "她从零再开始。"
+        },
+        {
+          "w": "lamp",
+          "pos": "n.",
+          "zh": "灯",
+          "eg": "A small lamp marks the next step.",
+          "egZh": "一盏小灯标出下一步。"
+        },
+        {
+          "w": "page",
+          "pos": "n.",
+          "zh": "一页",
+          "eg": "Nia reads one hard page.",
+          "egZh": "尼娅读难的一页。"
+        },
+        {
+          "w": "hour",
+          "pos": "n.",
+          "zh": "一小时",
+          "eg": "She uses this hour.",
+          "egZh": "她用好这一个小时。"
+        }
+      ],
+      "quiz": [
+        {
+          "q": "Where is Nia?",
+          "options": [
+            "In a dark alley",
+            "In a mall",
+            "In a lab"
+          ],
+          "answer": 0,
+          "zh": "尼娅在哪里？"
+        },
+        {
+          "q": "What does Nia read?",
+          "options": [
+            "A poster",
+            "One hard page",
+            "A menu"
+          ],
+          "answer": 1,
+          "zh": "尼娅读什么？"
+        }
+      ],
+      "game": {
+        "title": "One Dry Step",
+        "zh": "干的一步",
+        "intro": {
+          "en": "Type the missing words from this chapter.",
+          "zh": "把这一章挖掉的词写回去。"
+        },
+        "recall": [
+          {
+            "id": "v-alley-1",
+            "kind": "vocab",
+            "prompt": "小巷",
+            "sentence": "Rain fills the dark ____.",
+            "answer": "alley",
+            "hint": "n. 本章核心词。"
+          },
+          {
+            "id": "v-pride-2",
+            "kind": "vocab",
+            "prompt": "傲气",
+            "sentence": "She closes her ____.",
+            "answer": "pride",
+            "hint": "n. 本章核心词。"
+          },
+          {
+            "id": "v-zero-3",
+            "kind": "vocab",
+            "prompt": "零点",
+            "sentence": "She starts again from ____.",
+            "answer": "zero",
+            "hint": "n. 本章核心词。"
+          },
+          {
+            "id": "v-lamp-4",
+            "kind": "vocab",
+            "prompt": "灯",
+            "sentence": "A small ____ marks the next step.",
+            "answer": "lamp",
+            "hint": "n. 本章核心词。"
+          },
+          {
+            "id": "v-page-5",
+            "kind": "vocab",
+            "prompt": "一页",
+            "sentence": "Nia reads one hard ____.",
+            "answer": "page",
+            "hint": "n. 本章核心词。"
+          },
+          {
+            "id": "v-hour-6",
+            "kind": "vocab",
+            "prompt": "一小时",
+            "sentence": "She uses this ____.",
+            "answer": "hour",
+            "hint": "n. 本章核心词。"
+          },
+          {
+            "id": "g-1",
+            "kind": "grammar",
+            "prompt": "behind 表示在后面",
+            "sentence": "Rain fills the dark alley ____.",
+            "answer": "behind the station",
+            "hint": "behind the station 把巷子的位置说清楚。"
+          },
+          {
+            "id": "g-2",
+            "kind": "grammar",
+            "prompt": "and 连接两个动作",
+            "sentence": "Nia waits there ____ blames the weather.",
+            "answer": "and",
+            "hint": "waits 和 blames 共用主语 Nia。"
+          },
+          {
+            "id": "g-3",
+            "kind": "grammar",
+            "prompt": "again 表示重来",
+            "sentence": "She closes her pride and starts ____ from zero.",
+            "answer": "again",
+            "hint": "starts again 不是第一次开始，而是重新来过。"
+          },
+          {
+            "id": "g-4",
+            "kind": "grammar",
+            "prompt": "next 放在名词前",
+            "sentence": "A small lamp marks the ____ dry step.",
+            "answer": "next",
+            "hint": "next dry step 是紧接着的那一步，不是任意一步。"
+          },
+          {
+            "id": "g-5",
+            "kind": "grammar",
+            "prompt": "before 表示在某事之前",
+            "sentence": "Nia reads one hard page ____.",
+            "answer": "before she sleeps",
+            "hint": "before she sleeps 限定读书发生的时间。"
+          },
+          {
+            "id": "g-6",
+            "kind": "grammar",
+            "prompt": "so 表示所以",
+            "sentence": "She cannot see next year, ____ she uses this hour.",
+            "answer": "so",
+            "hint": "前面是原因，so 后面是她因此做出的行动。"
+          }
+        ]
+      }
+    },
+    {
+      "id": 4,
+      "scene": 3,
+      "title": "The Silent Radio",
+      "zh": "不出声的收音机",
+      "tag": "本事",
+      "art": "",
+      "minutes": 5,
+      "paragraphs": [
+        {
+          "en": "Chen holds a paper certificate in the quiet lab.",
+          "zh": "陈在安静的实验室里拿着一张纸质证书。",
+          "grammar": {
+            "title": "hold 表示拿着",
+            "explain": "holds 是此刻的动作，paper 说明证书是纸做的。",
+            "pattern": "主语 holds + 物品"
+          }
+        },
+        {
+          "en": "The certificate is grand, but the radio stays silent.",
+          "zh": "证书很气派，收音机却仍然没有声音。",
+          "grammar": {
+            "title": "but 表示转折",
+            "explain": "前半句说证书好看，but 把真正的问题转出来。",
+            "pattern": "A, but B"
+          }
+        },
+        {
+          "en": "He opens a manual and practices the missing skill.",
+          "zh": "他打开手册，练习自己缺的那项本事。",
+          "grammar": {
+            "title": "missing 作定语",
+            "explain": "missing skill 是还不会的技能，不是丢了的物品。",
+            "pattern": "形容词 + 名词"
+          }
+        },
+        {
+          "en": "A customer wants a working radio, not a famous school.",
+          "zh": "顾客要一台能响的收音机，不是一所有名的学校。",
+          "grammar": {
+            "title": "want 后面接想要的东西",
+            "explain": "wants a working radio 是具体需求，后面用 not 排除另一样。",
+            "pattern": "want + 名词, not + 名词"
+          }
+        },
+        {
+          "en": "Chen repairs the radio and names each step.",
+          "zh": "陈修好收音机，并把每一步说出来。",
+          "grammar": {
+            "title": "each 表示每一个",
+            "explain": "each step 强调不是含糊地说修好了，而是逐步说明。",
+            "pattern": "each + 单数名词"
+          }
+        },
+        {
+          "en": "Real ability shows up before the next test.",
+          "zh": "真本事会在下一次检验之前显出来。",
+          "grammar": {
+            "title": "show up 短语动词",
+            "explain": "shows up 是出现，不是把东西拿出来展示。",
+            "pattern": "主语 + show up"
+          }
+        }
+      ],
+      "vocab": [
+        {
+          "w": "certificate",
+          "pos": "n.",
+          "zh": "证书",
+          "eg": "Chen holds a paper certificate.",
+          "egZh": "陈拿着一张纸质证书。"
+        },
+        {
+          "w": "lab",
+          "pos": "n.",
+          "zh": "实验室",
+          "eg": "He stands in the quiet lab.",
+          "egZh": "他站在安静的实验室里。"
+        },
+        {
+          "w": "radio",
+          "pos": "n.",
+          "zh": "收音机",
+          "eg": "The radio stays silent.",
+          "egZh": "收音机仍然没有声音。"
+        },
+        {
+          "w": "manual",
+          "pos": "n.",
+          "zh": "手册",
+          "eg": "He opens a manual.",
+          "egZh": "他打开一本手册。"
+        },
+        {
+          "w": "skill",
+          "pos": "n.",
+          "zh": "本事",
+          "eg": "He practices the missing skill.",
+          "egZh": "他练习缺少的本事。"
+        },
+        {
+          "w": "customer",
+          "pos": "n.",
+          "zh": "顾客",
+          "eg": "A customer wants a working radio.",
+          "egZh": "一位顾客要一台能响的收音机。"
+        }
+      ],
+      "quiz": [
+        {
+          "q": "What stays silent?",
+          "options": [
+            "The radio",
+            "The lab",
+            "The manual"
+          ],
+          "answer": 0,
+          "zh": "什么没有声音？"
+        },
+        {
+          "q": "What does the customer want?",
+          "options": [
+            "A famous school",
+            "A paper poster",
+            "A working radio"
+          ],
+          "answer": 2,
+          "zh": "顾客想要什么？"
+        }
+      ],
+      "game": {
+        "title": "Fix the Radio",
+        "zh": "修好收音机",
+        "intro": {
+          "en": "Type the missing words from this chapter.",
+          "zh": "把这一章挖掉的词写回去。"
+        },
+        "recall": [
+          {
+            "id": "v-certificate-1",
+            "kind": "vocab",
+            "prompt": "证书",
+            "sentence": "Chen holds a paper ____.",
+            "answer": "certificate",
+            "hint": "n. 本章核心词。"
+          },
+          {
+            "id": "v-lab-2",
+            "kind": "vocab",
+            "prompt": "实验室",
+            "sentence": "He stands in the quiet ____.",
+            "answer": "lab",
+            "hint": "n. 本章核心词。"
+          },
+          {
+            "id": "v-radio-3",
+            "kind": "vocab",
+            "prompt": "收音机",
+            "sentence": "The ____ stays silent.",
+            "answer": "radio",
+            "hint": "n. 本章核心词。"
+          },
+          {
+            "id": "v-manual-4",
+            "kind": "vocab",
+            "prompt": "手册",
+            "sentence": "He opens a ____.",
+            "answer": "manual",
+            "hint": "n. 本章核心词。"
+          },
+          {
+            "id": "v-skill-5",
+            "kind": "vocab",
+            "prompt": "本事",
+            "sentence": "He practices the missing ____.",
+            "answer": "skill",
+            "hint": "n. 本章核心词。"
+          },
+          {
+            "id": "v-customer-6",
+            "kind": "vocab",
+            "prompt": "顾客",
+            "sentence": "A ____ wants a working radio.",
+            "answer": "customer",
+            "hint": "n. 本章核心词。"
+          },
+          {
+            "id": "g-1",
+            "kind": "grammar",
+            "prompt": "hold 表示拿着",
+            "sentence": "Chen ____ a paper certificate in the quiet lab.",
+            "answer": "holds",
+            "hint": "holds 是此刻的动作，paper 说明证书是纸做的。"
+          },
+          {
+            "id": "g-2",
+            "kind": "grammar",
+            "prompt": "but 表示转折",
+            "sentence": "The certificate is grand, ____ the radio stays silent.",
+            "answer": "but",
+            "hint": "前半句说证书好看，but 把真正的问题转出来。"
+          },
+          {
+            "id": "g-3",
+            "kind": "grammar",
+            "prompt": "missing 作定语",
+            "sentence": "He opens a manual and practices the ____ skill.",
+            "answer": "missing",
+            "hint": "missing skill 是还不会的技能，不是丢了的物品。"
+          },
+          {
+            "id": "g-4",
+            "kind": "grammar",
+            "prompt": "want 后面接想要的东西",
+            "sentence": "A customer wants ____, not a famous school.",
+            "answer": "a working radio",
+            "hint": "wants a working radio 是具体需求，后面用 not 排除另一样。"
+          },
+          {
+            "id": "g-5",
+            "kind": "grammar",
+            "prompt": "each 表示每一个",
+            "sentence": "Chen repairs the radio and names ____ step.",
+            "answer": "each",
+            "hint": "each step 强调不是含糊地说修好了，而是逐步说明。"
+          },
+          {
+            "id": "g-6",
+            "kind": "grammar",
+            "prompt": "show up 短语动词",
+            "sentence": "Real ability ____ before the next test.",
+            "answer": "shows up",
+            "hint": "shows up 是出现，不是把东西拿出来展示。"
+          }
+        ]
+      }
+    },
+    {
+      "id": 5,
+      "scene": 7,
+      "title": "One Better Way",
+      "zh": "更好的做法",
+      "tag": "精通",
+      "art": "",
+      "minutes": 5,
+      "paragraphs": [
+        {
+          "en": "Aya takes a dull job in the busy mall.",
+          "zh": "阿雅在热闹的商场里接下一份乏味的工作。",
+          "grammar": {
+            "title": "take a job",
+            "explain": "takes a job 是接受一份工作，不是把工作拿走。",
+            "pattern": "take a + 工作"
+          }
+        },
+        {
+          "en": "She dislikes the job, so she stays and practices.",
+          "zh": "她并不喜欢这份工作，所以留下来继续练。",
+          "grammar": {
+            "title": "so 引出因此做的事",
+            "explain": "不喜欢是原因，stays and practices 是她仍然选择的行动。",
+            "pattern": "原因, so 行动"
+          }
+        },
+        {
+          "en": "Every repeated task gets one small change.",
+          "zh": "每一件重复的任务都改动一点点。",
+          "grammar": {
+            "title": "every 强调整体中的每一个",
+            "explain": "every repeated task 表示没有一件重复的事被放过。",
+            "pattern": "every + 单数名词"
+          }
+        },
+        {
+          "en": "A checklist catches her proud mistakes.",
+          "zh": "一张清单拦住她因自满造成的差错。",
+          "grammar": {
+            "title": "catch 的引申",
+            "explain": "catches 这里不是用手抓住，而是在出错前发现。",
+            "pattern": "主语 + catch + 名词"
+          }
+        },
+        {
+          "en": "The dull job slowly becomes her strongest skill.",
+          "zh": "这份额味的工作慢慢变成她最强的本事。",
+          "grammar": {
+            "title": "become 表示变成",
+            "explain": "becomes 连接原来的 job 和后来的 skill。",
+            "pattern": "A becomes B"
+          }
+        },
+        {
+          "en": "Warm interest arrives only after mastery.",
+          "zh": "真正的兴趣是在精通之后才来的。",
+          "grammar": {
+            "title": "only after 限定时间",
+            "explain": "only after mastery 强调兴趣不是一开始就有。",
+            "pattern": "结果 + only after + 名词"
+          }
+        }
+      ],
+      "vocab": [
+        {
+          "w": "job",
+          "pos": "n.",
+          "zh": "工作",
+          "eg": "Aya takes a dull job.",
+          "egZh": "阿雅接下一份乏味的工作。"
+        },
+        {
+          "w": "mall",
+          "pos": "n.",
+          "zh": "商场",
+          "eg": "The job is in the busy mall.",
+          "egZh": "工作在热闹的商场里。"
+        },
+        {
+          "w": "task",
+          "pos": "n.",
+          "zh": "任务",
+          "eg": "Every repeated task gets one change.",
+          "egZh": "每一件重复的任务都有一点改动。"
+        },
+        {
+          "w": "checklist",
+          "pos": "n.",
+          "zh": "清单",
+          "eg": "A checklist catches her mistakes.",
+          "egZh": "一张清单拦住她的差错。"
+        },
+        {
+          "w": "mistakes",
+          "pos": "n.",
+          "zh": "差错",
+          "eg": "A checklist catches her proud mistakes.",
+          "egZh": "清单拦住她因自满造成的差错。"
+        },
+        {
+          "w": "mastery",
+          "pos": "n.",
+          "zh": "精通",
+          "eg": "Interest arrives after mastery.",
+          "egZh": "兴趣在精通之后到来。"
+        }
+      ],
+      "quiz": [
+        {
+          "q": "Where is Aya's job?",
+          "options": [
+            "In a lab",
+            "In a busy mall",
+            "In an alley"
+          ],
+          "answer": 1,
+          "zh": "阿雅的工作在哪里？"
+        },
+        {
+          "q": "When does interest arrive?",
+          "options": [
+            "After mastery",
+            "On the first morning",
+            "Before the job"
+          ],
+          "answer": 0,
+          "zh": "兴趣什么时候来？"
+        }
+      ],
+      "game": {
+        "title": "One Small Change",
+        "zh": "改一点",
+        "intro": {
+          "en": "Type the missing words from this chapter.",
+          "zh": "把这一章挖掉的词写回去。"
+        },
+        "recall": [
+          {
+            "id": "v-job-1",
+            "kind": "vocab",
+            "prompt": "工作",
+            "sentence": "Aya takes a dull ____.",
+            "answer": "job",
+            "hint": "n. 本章核心词。"
+          },
+          {
+            "id": "v-mall-2",
+            "kind": "vocab",
+            "prompt": "商场",
+            "sentence": "The job is in the busy ____.",
+            "answer": "mall",
+            "hint": "n. 本章核心词。"
+          },
+          {
+            "id": "v-task-3",
+            "kind": "vocab",
+            "prompt": "任务",
+            "sentence": "Every repeated ____ gets one change.",
+            "answer": "task",
+            "hint": "n. 本章核心词。"
+          },
+          {
+            "id": "v-checklist-4",
+            "kind": "vocab",
+            "prompt": "清单",
+            "sentence": "A ____ catches her mistakes.",
+            "answer": "checklist",
+            "hint": "n. 本章核心词。"
+          },
+          {
+            "id": "v-mistakes-5",
+            "kind": "vocab",
+            "prompt": "差错",
+            "sentence": "A checklist catches her proud ____.",
+            "answer": "mistakes",
+            "hint": "n. 本章核心词。"
+          },
+          {
+            "id": "v-mastery-6",
+            "kind": "vocab",
+            "prompt": "精通",
+            "sentence": "Interest arrives after ____.",
+            "answer": "mastery",
+            "hint": "n. 本章核心词。"
+          },
+          {
+            "id": "g-1",
+            "kind": "grammar",
+            "prompt": "take a job",
+            "sentence": "Aya ____ in the busy mall.",
+            "answer": "takes a dull job",
+            "hint": "takes a job 是接受一份工作，不是把工作拿走。"
+          },
+          {
+            "id": "g-2",
+            "kind": "grammar",
+            "prompt": "so 引出因此做的事",
+            "sentence": "She dislikes the job, ____ she stays and practices.",
+            "answer": "so",
+            "hint": "不喜欢是原因，stays and practices 是她仍然选择的行动。"
+          },
+          {
+            "id": "g-3",
+            "kind": "grammar",
+            "prompt": "every 强调整体中的每一个",
+            "sentence": "____ repeated task gets one small change.",
+            "answer": "Every",
+            "hint": "every repeated task 表示没有一件重复的事被放过。"
+          },
+          {
+            "id": "g-4",
+            "kind": "grammar",
+            "prompt": "catch 的引申",
+            "sentence": "A checklist ____ her proud mistakes.",
+            "answer": "catches",
+            "hint": "catches 这里不是用手抓住，而是在出错前发现。"
+          },
+          {
+            "id": "g-5",
+            "kind": "grammar",
+            "prompt": "become 表示变成",
+            "sentence": "The dull job slowly ____ her strongest skill.",
+            "answer": "becomes",
+            "hint": "becomes 连接原来的 job 和后来的 skill。"
+          },
+          {
+            "id": "g-6",
+            "kind": "grammar",
+            "prompt": "only after 限定时间",
+            "sentence": "Warm interest arrives ____ mastery.",
+            "answer": "only after",
+            "hint": "only after mastery 强调兴趣不是一开始就有。"
+          }
+        ]
+      }
+    },
+    {
+      "id": 6,
+      "scene": 2,
+      "title": "Coins in the Pocket",
+      "zh": "口袋里的硬币",
+      "tag": "取舍",
+      "art": "",
+      "minutes": 5,
+      "paragraphs": [
+        {
+          "en": "Ben counts his coins in the small corner store.",
+          "zh": "本在街角的小店里数自己的硬币。",
+          "grammar": {
+            "title": "his 表示所属",
+            "explain": "his coins 是本自己的硬币，不是店里的。",
+            "pattern": "his + 名词"
+          }
+        },
+        {
+          "en": "He buys a useful book instead of a loud show.",
+          "zh": "他买了一本有用的书，而不是一场喧闹的演出。",
+          "grammar": {
+            "title": "instead of 表示取舍",
+            "explain": "instead of 后面是他没有选的那一件。",
+            "pattern": "A instead of B"
+          }
+        },
+        {
+          "en": "A friend asks for a loan that will surely vanish.",
+          "zh": "一个朋友来借一笔肯定会消失的钱。",
+          "grammar": {
+            "title": "that 引导定语从句",
+            "explain": "that will surely vanish 修饰 loan，说明这笔钱的结果。",
+            "pattern": "名词 + that + 动词"
+          }
+        },
+        {
+          "en": "Ben says no and keeps the coins in his pocket.",
+          "zh": "本说不，并把硬币留在口袋里。",
+          "grammar": {
+            "title": "keep 表示留住",
+            "explain": "keeps the coins 是不花掉、不借走。",
+            "pattern": "keep + 名词 + 地点"
+          }
+        },
+        {
+          "en": "Every morning he reads the price board in the store.",
+          "zh": "每天早晨他都读店里的价格牌。",
+          "grammar": {
+            "title": "every morning 作时间状语",
+            "explain": "Every morning 放在句首，表示这是每天的习惯。",
+            "pattern": "Every morning + 主语 + 动词"
+          }
+        },
+        {
+          "en": "Money can open a door, but skill must walk through it.",
+          "zh": "钱可以打开一扇门，但走路过去要靠本事。",
+          "grammar": {
+            "title": "can 和 must 的差别",
+            "explain": "can 是可以，must 是必须。开门和走过去不是同一件事。",
+            "pattern": "can + 动词, but must + 动词"
+          }
+        }
+      ],
+      "vocab": [
+        {
+          "w": "coins",
+          "pos": "n.",
+          "zh": "硬币",
+          "eg": "Ben counts his coins.",
+          "egZh": "本数自己的硬币。"
+        },
+        {
+          "w": "store",
+          "pos": "n.",
+          "zh": "小店",
+          "eg": "He stands in the corner store.",
+          "egZh": "他站在街角小店里。"
+        },
+        {
+          "w": "book",
+          "pos": "n.",
+          "zh": "书",
+          "eg": "He buys a useful book.",
+          "egZh": "他买了一本有用的书。"
+        },
+        {
+          "w": "loan",
+          "pos": "n.",
+          "zh": "借款",
+          "eg": "A friend asks for a loan.",
+          "egZh": "一个朋友来借钱。"
+        },
+        {
+          "w": "board",
+          "pos": "n.",
+          "zh": "牌子",
+          "eg": "He reads the price board.",
+          "egZh": "他读价格牌。"
+        },
+        {
+          "w": "door",
+          "pos": "n.",
+          "zh": "门",
+          "eg": "Money can open a door.",
+          "egZh": "钱可以打开一扇门。"
+        }
+      ],
+      "quiz": [
+        {
+          "q": "What does Ben buy?",
+          "options": [
+            "A loud show",
+            "A useful book",
+            "A new radio"
+          ],
+          "answer": 1,
+          "zh": "本买了什么？"
+        },
+        {
+          "q": "What does Ben refuse?",
+          "options": [
+            "A price board",
+            "A useful book",
+            "A loan"
+          ],
+          "answer": 2,
+          "zh": "本拒绝了什么？"
+        }
+      ],
+      "game": {
+        "title": "Keep the Coins",
+        "zh": "留住硬币",
+        "intro": {
+          "en": "Type the missing words from this chapter.",
+          "zh": "把这一章挖掉的词写回去。"
+        },
+        "recall": [
+          {
+            "id": "v-coins-1",
+            "kind": "vocab",
+            "prompt": "硬币",
+            "sentence": "Ben counts his ____.",
+            "answer": "coins",
+            "hint": "n. 本章核心词。"
+          },
+          {
+            "id": "v-store-2",
+            "kind": "vocab",
+            "prompt": "小店",
+            "sentence": "He stands in the corner ____.",
+            "answer": "store",
+            "hint": "n. 本章核心词。"
+          },
+          {
+            "id": "v-book-3",
+            "kind": "vocab",
+            "prompt": "书",
+            "sentence": "He buys a useful ____.",
+            "answer": "book",
+            "hint": "n. 本章核心词。"
+          },
+          {
+            "id": "v-loan-4",
+            "kind": "vocab",
+            "prompt": "借款",
+            "sentence": "A friend asks for a ____.",
+            "answer": "loan",
+            "hint": "n. 本章核心词。"
+          },
+          {
+            "id": "v-board-5",
+            "kind": "vocab",
+            "prompt": "牌子",
+            "sentence": "He reads the price ____.",
+            "answer": "board",
+            "hint": "n. 本章核心词。"
+          },
+          {
+            "id": "v-door-6",
+            "kind": "vocab",
+            "prompt": "门",
+            "sentence": "Money can open a ____.",
+            "answer": "door",
+            "hint": "n. 本章核心词。"
+          },
+          {
+            "id": "g-1",
+            "kind": "grammar",
+            "prompt": "his 表示所属",
+            "sentence": "Ben counts ____ coins in the small corner store.",
+            "answer": "his",
+            "hint": "his coins 是本自己的硬币，不是店里的。"
+          },
+          {
+            "id": "g-2",
+            "kind": "grammar",
+            "prompt": "instead of 表示取舍",
+            "sentence": "He buys a useful book ____ a loud show.",
+            "answer": "instead of",
+            "hint": "instead of 后面是他没有选的那一件。"
+          },
+          {
+            "id": "g-3",
+            "kind": "grammar",
+            "prompt": "that 引导定语从句",
+            "sentence": "A friend asks for a loan ____.",
+            "answer": "that will surely vanish",
+            "hint": "that will surely vanish 修饰 loan，说明这笔钱的结果。"
+          },
+          {
+            "id": "g-4",
+            "kind": "grammar",
+            "prompt": "keep 表示留住",
+            "sentence": "Ben says no and ____ the coins in his pocket.",
+            "answer": "keeps",
+            "hint": "keeps the coins 是不花掉、不借走。"
+          },
+          {
+            "id": "g-5",
+            "kind": "grammar",
+            "prompt": "every morning 作时间状语",
+            "sentence": "____ he reads the price board in the store.",
+            "answer": "Every morning",
+            "hint": "Every morning 放在句首，表示这是每天的习惯。"
+          },
+          {
+            "id": "g-6",
+            "kind": "grammar",
+            "prompt": "can 和 must 的差别",
+            "sentence": "Money can open a door, but skill ____ walk through it.",
+            "answer": "must",
+            "hint": "can 是可以，must 是必须。开门和走过去不是同一件事。"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,75 @@
+{
+  "id": "tree-house-night",
+  "status": "ready",
+  "age": "8-12 岁",
+  "level": "自编分级 · 8-12 岁",
+  "kicker": "CHAPTER BOOK · 8-12 岁",
+  "tagline": "读完一章，守住你的树屋。",
+  "blurb": "一个孩子在树屋里度过怪物之夜。",
+  "color": "#8fd12f",
+  "book": {
+    "title": "The Tree House at Night",
+    "zh": "夜里的树屋",
+    "author": "根据用户提供的内容改写",
+    "level": "自编分级 · 8-12 岁",
+    "quote": { "en": "The tree house is small, but it is home.", "zh": "树屋不大，但它是家。" }
+  },
+  "chapters": [
+    {
+      "id": 1,
+      "scene": 1,
+      "title": "Lights in the Yard",
+      "zh": "院子里的光",
+      "tag": "树屋夜",
+      "art": "",
+      "minutes": 4,
+      "paragraphs": [
+        {
+          "en": "Mina lives in a tree house behind the old school.",
+          "zh": "米娜住在老学校后面的一座树屋里。",
+          "grammar": { "title": "一般现在时", "explain": "lives 表示现在的事实，主语是 she 时动词加 -s。", "pattern": "主语 + 动词-s" }
+        },
+        {
+          "en": "At night she counts her snacks and checks the rope ladder.",
+          "zh": "夜里她数零食，并检查绳梯。",
+          "grammar": { "title": "and 连接两个动作", "explain": "counts 和 checks 共用主语 she，表示先后做的两件事。", "pattern": "动词 and 动词" }
+        },
+        {
+          "en": "Tonight a green light moves across the yard.",
+          "zh": "今晚一道绿光划过院子。",
+          "grammar": { "title": "时间状语放句首", "explain": "Tonight 把时间提前，后面仍是正常的主语和动词。", "pattern": "时间 + 主语 + 动词" }
+        },
+        {
+          "en": "Mina grabs her flashlight and smiles.",
+          "zh": "米娜抓起手电筒，笑了。",
+          "grammar": { "title": "一般现在时并列", "explain": "grabs 和 smiles 都用第三人称单数，描述正在发生的连续动作。", "pattern": "主语 + 动词-s and 动词-s" }
+        }
+      ],
+      "vocab": [
+        { "w": "tree house", "pos": "n.", "zh": "树屋", "eg": "Mina lives in a tree house.", "egZh": "米娜住在一座树屋里。" },
+        { "w": "snacks", "pos": "n.", "zh": "零食", "eg": "She counts her snacks.", "egZh": "她数自己的零食。" },
+        { "w": "ladder", "pos": "n.", "zh": "梯子", "eg": "She checks the rope ladder.", "egZh": "她检查绳梯。" },
+        { "w": "flashlight", "pos": "n.", "zh": "手电筒", "eg": "Mina grabs her flashlight.", "egZh": "米娜抓起手电筒。" }
+      ],
+      "quiz": [
+        { "q": "Where does Mina live?", "options": ["In a cave", "In a tree house", "At a shop"], "answer": 1, "zh": "米娜住在哪里？" },
+        { "q": "What moves across the yard?", "options": ["A green light", "A red car", "A kite"], "answer": 0, "zh": "什么划过院子？" }
+      ],
+      "game": {
+        "title": "Yard Light",
+        "zh": "院子里的光",
+        "intro": { "en": "Type the missing words from this chapter.", "zh": "把这一章挖掉的词写回去。" },
+        "recall": [
+          { "id": "v-tree-house", "kind": "vocab", "prompt": "树屋", "sentence": "Mina lives in a ____.", "answer": "tree house", "hint": "名词。本章用来称呼米娜的家。" },
+          { "id": "v-snacks", "kind": "vocab", "prompt": "零食", "sentence": "She counts her ____.", "answer": "snacks", "hint": "名词，用复数。" },
+          { "id": "v-ladder", "kind": "vocab", "prompt": "梯子", "sentence": "She checks the rope ____.", "answer": "ladder", "hint": "名词。绳梯的那一个词。" },
+          { "id": "v-flashlight", "kind": "vocab", "prompt": "手电筒", "sentence": "Mina grabs her ____.", "answer": "flashlight", "hint": "名词。她抓起来的那件东西。" },
+          { "id": "g-1", "kind": "grammar", "prompt": "一般现在时", "sentence": "Mina ____ in a tree house behind the old school.", "answer": "lives", "hint": "主语是 she 时，动词加 -s。" },
+          { "id": "g-2", "kind": "grammar", "prompt": "and 连接两个动作", "sentence": "At night she counts her snacks ____ checks the rope ladder.", "answer": "and", "hint": "两个动词共用一个主语时，中间用 and。" },
+          { "id": "g-3", "kind": "grammar", "prompt": "时间状语放句首", "sentence": "____ a green light moves across the yard.", "answer": "Tonight", "hint": "把时间放到句首，后面仍是主语加动词。" },
+          { "id": "g-4", "kind": "grammar", "prompt": "一般现在时并列", "sentence": "Mina ____ her flashlight and smiles.", "answer": "grabs", "hint": "主语是 Mina 时，动词用第三人称单数。" }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+[Unit]
+Description=Reader Phase1 authenticated control plane
+After=network.target var-lib-reader-jobs.mount
+BindsTo=var-lib-reader-jobs.mount
+[Service]
+Type=simple
+User=reader-api
+Group=reader-data
+UMask=0007
+WorkingDirectory=/opt/reader/current
+EnvironmentFile=/etc/reader/api.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/opt/reader-runtime/bin/python -m uvicorn reader_service.api:create_app --factory --host 127.0.0.1 --port 6010 --workers 1 --no-access-log --no-proxy-headers --log-level warning
+OOMPolicy=kill
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+ReadWritePaths=/var/lib/reader
+MemoryHigh=96M
+MemoryMax=128M
+MemorySwapMax=0
+CPUQuota=50%
+TasksMax=32
+LimitNOFILE=256
+LimitCORE=0
+[Install]
+WantedBy=multi-user.target

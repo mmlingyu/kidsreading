@@ -1,0 +1,9 @@
+{
+  "trusted_manifest_sha256": "REPLACE_WITH_ACTUAL_TRUSTED-SHA256.json_HASH",
+  "source_parity_reviewed": false,
+  "namespace_negative_probes": false,
+  "filesystem_hard_quota": false,
+  "systemd_cgroup_limits": false,
+  "linux_py312_sdk_smoke": false,
+  "https_auth_checked": false
+}

@@ -1,10 +1,45 @@
 .DS_Store
 Thumbs.db
 *.log
-.env
-.env.*
 .idea/
 .vscode/
 node_modules/
+
+# Filled secrets and local environment. Checked-in examples stay tracked:
+# deploy/worker.env.example, deploy/api.env.example, deploy/accepted.json.example
+.env
+.env.*
+!.env.example
+!**/*.example
+owners.json
+client-token*
+*.pem
+*.key
+id_rsa
+id_ed25519
+
+# Runtime data, caches, and model weights.
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+*.sqlite
+*.sqlite3
+*.db
+*.onnx
+*.wasm
+*.npy
+*.wav
+*.pt
+*.safetensors
+*.ckpt
+
+# Historical Kokoro files already ignored on main. The tracked voice bins
+# under tts/voices/*.bin stay tracked; do not add further weights.
 tts/ort/*.wasm
 tts/models/**/*.onnx
+
+# Generated archives. The accepted r4 tar is rebuilt outside the checkout.
+*.tar.gz
+*.zip

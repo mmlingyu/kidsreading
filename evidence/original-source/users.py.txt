@@ -1,0 +1,348 @@
+"""File-backed user accounts identified by face-api.js 128-d descriptors.
+
+The browser extracts the descriptor (photo stays on device). The server stores
+only the vector and matches with Euclidean distance, matching the face-api.js
+access-control demo: same person ~0.0–0.4, different people typically >0.6.
+"""
+from __future__ import annotations
+
+import json
+import math
+import os
+import re
+import secrets
+import time
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
+from typing import Iterable, List, Optional, Tuple
+
+from itsdangerous import BadSignature, SignatureExpired, TimestampSigner
+from starlette.requests import Request
+from starlette.responses import Response
+
+BASE_DIR = Path(__file__).resolve().parent
+USERS_DIR = BASE_DIR / "data" / "users"
+SECRET_PATH = BASE_DIR / "data" / ".secret"
+
+DESCRIPTOR_DIM = 128
+MATCH_THRESHOLD = 0.6
+DUPLICATE_THRESHOLD = 0.5
+MAX_SAMPLES = 5
+SESSION_COOKIE = "idealab_session"
+SESSION_MAX_AGE = 30 * 24 * 3600
+MAX_NAME_LEN = 20
+
+_ID_RE = re.compile(r"^[A-Za-z0-9_-]{8,32}$")
+_CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
+
+_signer: Optional[TimestampSigner] = None
+
+
+class AuthError(ValueError):
+    status_code = 400
+
+
+class DuplicateFaceError(AuthError):
+    status_code = 409
+
+    def __init__(self, name: str, distance: float):
+        self.name = name
+        self.distance = distance
+        super().__init__(f"这张脸已经注册过：{name}")
+
+
+class FaceNotRecognizedError(AuthError):
+    status_code = 401
+
+    def __init__(self, distance: Optional[float] = None):
+        self.distance = distance
+        super().__init__("未识别到已注册的人脸")
+
+
+@dataclass
+class User:
+    id: str
+    name: str
+    created: float
+    descriptors: List[List[float]] = field(default_factory=list)
+    login_count: int = 0
+    last_login: Optional[float] = None
+    unlocked_skills: List[str] = field(default_factory=list)
+
+    @property
+    def created_iso(self) -> str:
+        return time.strftime("%Y-%m-%d %H:%M", time.localtime(self.created))
+
+    @property
+    def last_login_iso(self) -> str:
+        if not self.last_login:
+            return ""
+        return time.strftime("%Y-%m-%d %H:%M", time.localtime(self.last_login))
+
+
+def configure(*, users_dir: Optional[Path] = None, secret: Optional[str] = None) -> None:
+    """Test hook: point storage and cookie signing at an isolated directory."""
+    global USERS_DIR, SECRET_PATH, _signer
+    if users_dir is not None:
+        USERS_DIR = Path(users_dir)
+        SECRET_PATH = USERS_DIR.parent / ".secret"
+    USERS_DIR.mkdir(parents=True, exist_ok=True)
+    _signer = TimestampSigner(secret if secret is not None else _load_secret())
+    try:
+        import library
+
+        library.configure(library_dir=(USERS_DIR.parent / "library"))
+    except ImportError:
+        pass
+
+
+def _load_secret() -> str:
+    env = (os.environ.get("HTML_SHARE_SECRET") or "").strip()
+    if env:
+        return env
+    SECRET_PATH.parent.mkdir(parents=True, exist_ok=True)
+    if SECRET_PATH.exists():
+        value = SECRET_PATH.read_text(encoding="utf-8").strip()
+        if value:
+            return value
+    value = secrets.token_urlsafe(32)
+    SECRET_PATH.write_text(value, encoding="utf-8")
+    return value
+
+
+def _get_signer() -> TimestampSigner:
+    global _signer
+    if _signer is None:
+        USERS_DIR.mkdir(parents=True, exist_ok=True)
+        _signer = TimestampSigner(_load_secret())
+    return _signer
+
+
+def euclidean_distance(a: List[float], b: List[float]) -> float:
+    if len(a) != len(b):
+        raise AuthError("特征向量长度不一致")
+    return math.sqrt(sum((x - y) ** 2 for x, y in zip(a, b)))
+
+
+def _l2_norm(values: List[float]) -> float:
+    return math.sqrt(sum(v * v for v in values))
+
+
+def normalize_descriptor(raw) -> List[float]:
+    if not isinstance(raw, (list, tuple)) or len(raw) != DESCRIPTOR_DIM:
+        raise AuthError(f"需要 {DESCRIPTOR_DIM} 维人脸特征")
+    values: List[float] = []
+    for item in raw:
+        try:
+            number = float(item)
+        except (TypeError, ValueError) as exc:
+            raise AuthError("人脸特征包含非法数值") from exc
+        if not math.isfinite(number):
+            raise AuthError("人脸特征包含非法数值")
+        values.append(number)
+    norm = _l2_norm(values)
+    if norm < 0.4 or norm > 2.5:
+        raise AuthError("人脸特征无效，请重新对准摄像头")
+    return values
+
+
+def normalize_name(name: str) -> str:
+    text = _CONTROL_RE.sub("", (name or "").strip())
+    text = re.sub(r"\s+", " ", text)
+    if not text:
+        raise AuthError("请填写昵称")
+    if len(text) > MAX_NAME_LEN:
+        raise AuthError(f"昵称最多 {MAX_NAME_LEN} 个字")
+    return text
+
+
+def _new_id() -> str:
+    return secrets.token_urlsafe(8)[:11]
+
+
+def _user_path(user_id: str) -> Path:
+    return USERS_DIR / f"{user_id}.json"
+
+
+def _write_user(user: User) -> None:
+    USERS_DIR.mkdir(parents=True, exist_ok=True)
+    path = _user_path(user.id)
+    tmp = path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(asdict(user), ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp.replace(path)
+
+
+def _read_user(path: Path) -> Optional[User]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    known = {
+        "id", "name", "created", "descriptors", "login_count", "last_login", "unlocked_skills"
+    }
+    try:
+        return User(**{k: v for k, v in data.items() if k in known})
+    except TypeError:
+        return None
+
+
+def get_user(user_id: str) -> Optional[User]:
+    if not _ID_RE.match(user_id or ""):
+        return None
+    path = _user_path(user_id)
+    if not path.exists():
+        return None
+    return _read_user(path)
+
+
+def list_users() -> List[User]:
+    USERS_DIR.mkdir(parents=True, exist_ok=True)
+    users: List[User] = []
+    for path in USERS_DIR.glob("*.json"):
+        user = _read_user(path)
+        if user is not None:
+            users.append(user)
+    users.sort(key=lambda u: u.created, reverse=True)
+    return users
+
+
+def min_distance(descriptor: List[float], user: User) -> float:
+    if not user.descriptors:
+        return float("inf")
+    return min(euclidean_distance(descriptor, sample) for sample in user.descriptors)
+
+
+def match_user(descriptor: List[float]) -> Tuple[Optional[User], float]:
+    best: Optional[User] = None
+    best_dist = float("inf")
+    for user in list_users():
+        dist = min_distance(descriptor, user)
+        if dist < best_dist:
+            best_dist = dist
+            best = user
+    return best, best_dist
+
+
+def public_user(user: User, *, distance: Optional[float] = None) -> dict:
+    payload = {
+        "id": user.id,
+        "name": user.name,
+        "created": user.created_iso,
+        "samples": len(user.descriptors),
+        "login_count": user.login_count,
+        "last_login": user.last_login_iso,
+        "unlocked_skills": list(user.unlocked_skills or []),
+    }
+    if distance is not None:
+        payload["distance"] = round(distance, 4)
+        payload["matched"] = distance < MATCH_THRESHOLD
+    return payload
+
+
+def register(name: str, descriptor_raw) -> User:
+    descriptor = normalize_descriptor(descriptor_raw)
+    display_name = normalize_name(name)
+    existing, dist = match_user(descriptor)
+    if existing is not None and dist < DUPLICATE_THRESHOLD:
+        raise DuplicateFaceError(existing.name, dist)
+    user_id = _new_id()
+    while _user_path(user_id).exists():
+        user_id = _new_id()
+    now = time.time()
+    user = User(
+        id=user_id,
+        name=display_name,
+        created=now,
+        descriptors=[descriptor],
+        login_count=1,
+        last_login=now,
+    )
+    _write_user(user)
+    return user
+
+
+def login(descriptor_raw) -> Tuple[User, float]:
+    descriptor = normalize_descriptor(descriptor_raw)
+    user, dist = match_user(descriptor)
+    if user is None or dist >= MATCH_THRESHOLD:
+        raise FaceNotRecognizedError(None if math.isinf(dist) else dist)
+    user.login_count += 1
+    user.last_login = time.time()
+    _write_user(user)
+    return user, dist
+
+
+def enroll(user_id: str, descriptor_raw) -> Tuple[User, float]:
+    user = get_user(user_id)
+    if user is None:
+        raise AuthError("请先登录")
+    descriptor = normalize_descriptor(descriptor_raw)
+    self_dist = min_distance(descriptor, user)
+    if self_dist >= MATCH_THRESHOLD:
+        raise AuthError("新照片和当前账号不像同一个人，未保存")
+    other, other_dist = match_user(descriptor)
+    if other is not None and other.id != user.id and other_dist <= self_dist:
+        raise AuthError("这张脸更接近另一个账号，未保存")
+    if len(user.descriptors) >= MAX_SAMPLES:
+        user.descriptors.pop(0)
+    user.descriptors.append(descriptor)
+    user.last_login = time.time()
+    _write_user(user)
+    return user, self_dist
+
+
+def sign_session(user_id: str) -> str:
+    token = _get_signer().sign(user_id.encode("utf-8"))
+    return token.decode("utf-8") if isinstance(token, bytes) else token
+
+
+def read_session(token: Optional[str]) -> Optional[str]:
+    if not token:
+        return None
+    try:
+        raw = _get_signer().unsign(token, max_age=SESSION_MAX_AGE)
+    except (BadSignature, SignatureExpired, TypeError):
+        return None
+    user_id = raw.decode("utf-8") if isinstance(raw, bytes) else str(raw)
+    return user_id if _ID_RE.match(user_id) else None
+
+
+def user_from_request(request: Request) -> Optional[User]:
+    return get_user(read_session(request.cookies.get(SESSION_COOKIE)) or "")
+
+
+def set_session_cookie(response: Response, user_id: str, *, secure: bool = False) -> None:
+    response.set_cookie(
+        SESSION_COOKIE,
+        sign_session(user_id),
+        max_age=SESSION_MAX_AGE,
+        httponly=True,
+        samesite="lax",
+        path="/",
+        secure=secure,
+    )
+
+
+def save_user(user: User) -> None:
+    _write_user(user)
+
+
+def unlock_skills(user_id: str, names: Iterable[str]) -> Optional[User]:
+    user = get_user(user_id)
+    if user is None:
+        return None
+    owned = list(user.unlocked_skills or [])
+    changed = False
+    for name in names:
+        skill = (name or "").strip()
+        if skill and skill not in owned:
+            owned.append(skill)
+            changed = True
+    if changed:
+        user.unlocked_skills = owned
+        _write_user(user)
+    return user
+
+
+def clear_session_cookie(response: Response) -> None:
+    response.delete_cookie(SESSION_COOKIE, path="/")

@@ -1,0 +1,380 @@
+"""Deterministic post-generation review gates for Studio artifacts."""
+from __future__ import annotations
+
+import base64
+import hashlib
+import html
+import importlib.util
+import json
+import mimetypes
+import re
+import shutil
+import subprocess
+from pathlib import Path
+
+import security
+import task_specs
+
+BASE_DIR = Path(__file__).resolve().parent
+
+
+def _result(project: dict, errors: list[str], warnings: list[str], evidence: list[str]) -> dict:
+    return {
+        "status": "failed" if errors else ("warning" if warnings else "passed"),
+        "passed": not errors,
+        "errors": errors,
+        "warnings": warnings,
+        "evidence": evidence,
+        "skill": task_specs.get_spec(project)["skill"],
+    }
+
+
+def _report_gate(outputs: Path, errors: list[str], evidence: list[str]) -> None:
+    report = outputs / "report.md"
+    if not report.is_file() or report.stat().st_size < 80:
+        errors.append("缺少有效的 outputs/report.md Review 报告")
+    else:
+        evidence.append(f"Review 报告：{report.name}（{report.stat().st_size} bytes）")
+
+
+def _html_gate(
+    preview: Path,
+    errors: list[str],
+    warnings: list[str],
+    evidence: list[str],
+) -> str:
+    if not preview.is_file() or preview.stat().st_size < 80:
+        errors.append("缺少有效的 outputs/preview.html")
+        return ""
+    document = preview.read_bytes().decode("utf-8", errors="replace")
+    evidence.append(f"HTML 产物：{preview.name}（{preview.stat().st_size} bytes）")
+    if not re.search(r"<html[\s>]", document, re.I):
+        errors.append("preview.html 不是完整 HTML 文档")
+    if re.search(r"""(?:src|href)\s*=\s*["']file:""", document, re.I):
+        errors.append("preview.html 仍依赖 file:// 资源")
+    report = security.scan(document)
+    if report["level"] == "danger":
+        errors.append("HTML 安全扫描为危险，禁止发布")
+    elif report["level"] == "warning":
+        warnings.append("HTML 安全扫描存在提醒，分享时继续使用沙箱")
+    return document
+
+
+def _find_final_image(outputs: Path) -> Path | None:
+    images = [
+        path
+        for path in outputs.iterdir()
+        if path.is_file() and path.suffix.lower() in task_specs.IMAGE_SUFFIXES
+    ] if outputs.exists() else []
+    finals = [path for path in images if "final" in path.stem.lower()]
+    return max(finals or images, key=lambda path: path.stat().st_mtime) if images else None
+
+
+def _build_game_preview(project: dict, outputs: Path) -> None:
+    preview = outputs / "preview.html"
+    if preview.exists():
+        return
+    images = [
+        path
+        for path in outputs.iterdir()
+        if path.is_file() and path.suffix.lower() in task_specs.IMAGE_SUFFIXES
+    ][:6]
+    figures = []
+    for image in images:
+        mime = mimetypes.guess_type(image.name)[0] or "image/png"
+        src = base64.b64encode(image.read_bytes()).decode("ascii")
+        figures.append(
+            f'<figure><img src="data:{mime};base64,{src}" alt="{html.escape(image.name)}">'
+            f"<figcaption>{html.escape(image.name)}</figcaption></figure>"
+        )
+    title = html.escape(project.get("title") or "3D 场景交付")
+    scope = html.escape(project.get("scene_scope") or "")
+    interaction = html.escape(project.get("core_interaction") or "")
+    preview.write_text(
+        "<!doctype html><html lang='zh-CN'><head><meta charset='utf-8'>"
+        f"<meta name='viewport' content='width=device-width,initial-scale=1'><title>{title}</title>"
+        "<style>body{margin:0;background:#11151d;color:#eef2f8;font:16px/1.6 system-ui;padding:24px}"
+        "main{max-width:1100px;margin:auto}section{background:#1c2330;padding:18px;border-radius:16px;margin:14px 0}"
+        ".grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}"
+        "img{width:100%;border-radius:12px}figcaption{color:#aeb8c8}</style></head><body><main>"
+        f"<h1>{title}</h1><section><b>限定场景</b><p>{scope}</p><b>核心交互</b><p>{interaction}</p></section>"
+        f"<div class='grid'>{''.join(figures)}</div>"
+        "<section>可编辑 scene.blend、启动说明和完整 Review 报告已保存在项目交付目录。</section>"
+        "</main></body></html>",
+        encoding="utf-8",
+    )
+
+
+def review_project(project: dict, project_root: Path) -> dict:
+    outputs = project_root / "outputs"
+    errors: list[str] = []
+    warnings: list[str] = []
+    evidence: list[str] = []
+    key = task_specs.spec_key(project)
+    _report_gate(outputs, errors, evidence)
+
+    if key in {"text", "zdog", "colorfigures", "animation", "exhibit-card", "knowledge-travel"}:
+        document = _html_gate(outputs / "preview.html", errors, warnings, evidence)
+        if key == "text" and document:
+            banned = re.findall(r"\b(?:vite|react|partykit|sqlite)\b", document, re.I)
+            if banned:
+                errors.append("文本构建产物包含被禁止的运行时依赖：" + "、".join(sorted(set(banned))))
+        if key == "zdog" and document:
+            required = {
+                "Zdog.Illustration": "未创建 Zdog.Illustration",
+                "dragRotate": "未启用拖拽旋转",
+                "requestAnimationFrame": "未找到动画循环",
+            }
+            for token, message in required.items():
+                if token not in document:
+                    errors.append(message)
+            if re.search(r"\bTHREE\b|three\.js", document, re.I):
+                errors.append("Zdog 任务不能用 Three.js 替代")
+        if key == "colorfigures" and document:
+            required = {
+                "mountFigure": "未调用 mountFigure",
+                "xrMount": "未调用 xrMount（See-through / Labels）",
+            }
+            for token, message in required.items():
+                if token not in document:
+                    errors.append(message)
+            if re.search(r"three\.js|THREE\.(Scene|WebGLRenderer)|Zdog\.Illustration", document):
+                errors.append("彩墨物件必须用 colorfigures 引擎，不能用 Three.js 或 Zdog")
+        if key == "exhibit-card" and document:
+            required = {
+                "data-exhibit": "未标记馆藏卡片甲板 data-exhibit",
+                "getBoundingClientRect": "未使用 FLIP（缺少 getBoundingClientRect）",
+                "template": "原文未放在 template 中",
+                "data-rank": "卡片缺少 data-rank 等级",
+            }
+            for token, message in required.items():
+                if token not in document:
+                    errors.append(message)
+        if key == "knowledge-travel" and document:
+            required = {
+                "game-spec": "缺少嵌入的 #game-spec 关卡表",
+                "<canvas": "缺少 Canvas 游戏画布",
+                "requestAnimationFrame": "未找到动画循环",
+                "quiz": "缺少答题门 / quiz 交互",
+                "levelHasKnowledge": "缺少无知识检测 levelHasKnowledge",
+                "interact": "缺少无知识关的场景交互 / interact",
+                "ArrowRight": "缺少键盘左右移动控制",
+            }
+            for token, message in required.items():
+                if token not in document:
+                    errors.append(message)
+            if "localStorage" in document:
+                errors.append("知识穿越游戏不能依赖 localStorage（沙箱无同源）")
+            if re.search(r"\b(?:vite|react|npm)\b", document, re.I):
+                errors.append("知识穿越产物不能依赖 Vite/React/npm 构建")
+        if key == "animation":
+            atlases = list(outputs.glob("*.atlas"))
+            textures = [p for p in outputs.glob("*.png") if p.is_file()]
+            skeletons = []
+            for path in outputs.glob("*.json"):
+                try:
+                    data = json.loads(path.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    continue
+                if isinstance(data, dict) and data.get("bones") and data.get("animations"):
+                    skeletons.append((path, data))
+            if not atlases:
+                errors.append("Spine 产物缺少 atlas")
+            if not textures:
+                errors.append("Spine 产物缺少 atlas 贴图")
+            if not skeletons:
+                errors.append("Spine JSON 缺少有效 bones 或 animations")
+            else:
+                names = sorted((skeletons[0][1].get("animations") or {}).keys())
+                evidence.append("动画列表：" + "、".join(names))
+                if not names:
+                    errors.append("Spine JSON 没有可播放动作")
+    elif key in {"spdesign", "dtdesign"}:
+        image = _find_final_image(outputs)
+        if image is None:
+            errors.append("没有找到最终图片")
+        else:
+            info = task_specs.inspect_image(image)
+            if not info["valid"]:
+                errors.append("最终图片损坏或尺寸过小")
+            else:
+                ratio = info["width"] / max(1, info["height"])
+                evidence.append(f"最终图片：{image.name} {info['width']}×{info['height']}")
+                if not 0.58 <= ratio <= 0.82:
+                    warnings.append("最终图片不是推荐的竖版 2:3 或 3:4 构图")
+    elif key == "game":
+        blend = list(outputs.glob("*.blend"))
+        target = outputs / "target.png"
+        screenshots = [
+            path for path in outputs.glob("*.png")
+            if path.name != "target.png"
+        ]
+        if not blend:
+            errors.append("游戏交付缺少可编辑 scene.blend")
+        if not target.is_file():
+            errors.append("游戏交付缺少已确认的 target.png")
+        else:
+            approval = project.get("target_approval") or {}
+            target_hash = hashlib.sha256(target.read_bytes()).hexdigest()
+            if not approval.get("approved") or approval.get("sha256") != target_hash:
+                errors.append("目标图未由项目用户确认，或确认后又被替换")
+        if not screenshots:
+            errors.append("游戏交付缺少实际运行或迭代截图")
+        report_path = outputs / "report.md"
+        if report_path.is_file():
+            report_text = report_path.read_text(encoding="utf-8", errors="replace")
+            if not re.search(r"playtest|试玩|移动测试|交互测试", report_text, re.I):
+                errors.append("Review 报告缺少移动、交互或人工试玩记录")
+        if not errors:
+            _build_game_preview(project, outputs)
+            _html_gate(outputs / "preview.html", errors, warnings, evidence)
+    elif key == "game-port":
+        import port_games
+
+        slug = str(project.get("game_slug") or "").strip()
+        web = port_games.PORT_ROOT / "target" / slug / "web" / "index.html"
+        readme = port_games.PORT_ROOT / "target" / slug / "README.md"
+        if not slug or not web.is_file() or web.stat().st_size < 40:
+            errors.append("还没有搬完，缺少可以打开的网页")
+        else:
+            evidence.append(f"试玩页：{web}（{web.stat().st_size} bytes）")
+        if readme.is_file() and readme.stat().st_size > 40:
+            evidence.append(f"说明：{readme.name}")
+        leaked = [
+            path.name
+            for path in (port_games.PORT_ROOT / "target" / slug).rglob("*")
+            if path.is_file() and path.suffix.lower() in {".exe", ".dll"}
+        ]
+        if leaked:
+            errors.append("可执行文件跑到了网站目录，必须拿回去")
+        _html_gate(outputs / "preview.html", errors, warnings, evidence)
+    elif key == "wrong-answer":
+        _review_explain(project, outputs, errors, warnings, evidence)
+    elif key == "adventure-reader":
+        _review_book(outputs, errors, evidence)
+
+    return _result(project, errors, warnings, evidence)
+
+
+def _book_checker():
+    path = BASE_DIR / "skills" / "adventure-reader" / "scripts" / "validate.py"
+    spec = importlib.util.spec_from_file_location("adventure_reader_validate", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("找不到 adventure-reader 校验脚本")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _review_book(outputs: Path, errors: list[str], evidence: list[str]) -> None:
+    book_path = outputs / "book.json"
+    if not book_path.is_file() or book_path.stat().st_size < 80:
+        errors.append("缺少 outputs/book.json")
+        return
+    try:
+        book = json.loads(book_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        errors.append("outputs/book.json 不是合法 JSON")
+        return
+    problems = _book_checker().check_book(book)
+    if problems:
+        errors.extend(problems[:12])
+        if len(problems) > 12:
+            errors.append(f"另外还有 {len(problems) - 12} 个校验问题")
+        return
+    chapters = book.get("chapters") if isinstance(book, dict) else []
+    evidence.append(f"书稿：{book.get('id')} · {len(chapters)} 章")
+    node = shutil.which("node")
+    script = BASE_DIR / "skills" / "adventure-reader" / "scripts" / "playtest.js"
+    if not node or not script.is_file():
+        errors.append("本机没有 node，填空自测没有运行")
+        return
+    try:
+        proc = subprocess.run(
+            [node, str(script), str(book_path)],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=60,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        errors.append(f"填空自测没有跑完：{exc}")
+        return
+    if proc.returncode != 0:
+        tail = (proc.stderr or proc.stdout or "填空自测失败").strip().splitlines()
+        errors.append((tail[-1] if tail else "填空自测失败")[:300])
+        return
+    line = (proc.stdout or "填空自测通过").strip().splitlines()
+    evidence.append((line[-1] if line else "填空自测通过")[:200])
+
+
+def _review_explain(project: dict, outputs: Path, errors: list[str], warnings: list[str], evidence: list[str]) -> None:
+    images = [
+        str(asset.get("name") or "")
+        for asset in project.get("assets") or []
+        if Path(str(asset.get("name") or "")).suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"}
+    ]
+    problem_path = outputs / "problem.json"
+    problem = {}
+    if problem_path.is_file():
+        try:
+            problem = json.loads(problem_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            problem = {}
+    if not isinstance(problem, dict) or not str(problem.get("problem") or "").strip():
+        errors.append("缺少认出的题目 outputs/problem.json")
+    elif images:
+        files = [Path(str(name)).name for name in problem.get("files") or []]
+        if problem.get("source") != "image" or not any(Path(name).name in files for name in images):
+            errors.append("题目图片还没有写入识别结果")
+        elif problem.get("readable") is False:
+            errors.append("题目图片未能识别，不能当作已讲完")
+        else:
+            evidence.append("题目来自图片：" + "、".join(files))
+    scene = outputs / "scene.py"
+    video = outputs / "explain.mp4"
+    scene_text = scene.read_text(encoding="utf-8") if scene.is_file() else ""
+    if "import manimgx" not in scene_text or "def construct" not in scene_text:
+        errors.append("outputs/scene.py 必须是可改的 ManimGX 场景")
+    if not video.is_file() or video.stat().st_size < 1024:
+        errors.append("缺少 ManimGX 渲染的 outputs/explain.mp4")
+    elif video.stat().st_size > 5_500_000:
+        errors.append("讲解视频超过 5.5MB，缩短到 16 秒内再渲染")
+    else:
+        evidence.append(f"讲解视频：explain.mp4（{video.stat().st_size} bytes）")
+    _embed_explain_video(outputs)
+    document = _html_gate(outputs / "preview.html", errors, warnings, evidence)
+    if document and "<video" not in document.lower():
+        errors.append("preview.html 必须用 video 播放讲解")
+    if document and "explain.mp4" in document:
+        errors.append("preview.html 仍引用外部 explain.mp4，发布页放不出影片")
+
+
+def _embed_explain_video(outputs: Path) -> None:
+    preview = outputs / "preview.html"
+    video = outputs / "explain.mp4"
+    if not preview.is_file() or not video.is_file():
+        return
+    document = preview.read_text(encoding="utf-8", errors="replace")
+    if "explain.mp4" not in document:
+        return
+    payload = base64.b64encode(video.read_bytes()).decode("ascii")
+    document = document.replace('src="explain.mp4"', f'src="data:video/mp4;base64,{payload}"')
+    document = document.replace("src='explain.mp4'", f"src='data:video/mp4;base64,{payload}'")
+    preview.write_text(document, encoding="utf-8")
+
+
+def revision_prompt(project: dict, report: dict, attempt: int) -> str:
+    errors = "\n".join(f"- {item}" for item in report.get("errors") or [])
+    construction = (
+        "这是第二次也是最后一次自动修订；图像任务必须改变失败部分的构造，不能只改形容词。\n"
+        if attempt >= 2
+        else ""
+    )
+    return (
+        f"产物 Review 未通过，请修订 outputs/ 中的交付物。\n{construction}"
+        f"必须修复：\n{errors}\n"
+        "不要重写计划；直接检查真实文件并修复。保留旧版本，更新最终产物与 report.md。"
+    )

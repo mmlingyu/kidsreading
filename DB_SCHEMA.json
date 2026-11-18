@@ -1,0 +1,8 @@
+{
+  "reads": [
+    1,
+    2
+  ],
+  "writes": 2,
+  "migration": "additive columns; r1 implicit INSERT is NOT compatible after migration"
+}

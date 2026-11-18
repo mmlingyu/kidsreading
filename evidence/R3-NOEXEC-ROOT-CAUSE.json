@@ -1,0 +1,16 @@
+{
+  "sdk": "0.2.2rc2",
+  "host": "box Linux Python3.13",
+  "actual_noexec_mount": "/dev/shm",
+  "fake_provider": true,
+  "first_turn_reason": "error",
+  "first_error": [
+    {
+      "message": "/work/.cache/pkg/dfa6d5861f51ddb5112a7c92e560752d79c2a89362c0634c8d4f0fc888b21487/@deepseek-ai/node-addon-system-linux-x64/bin/glibc/system.node: failed to map segment from shared object",
+      "code": "UNKNOWN"
+    }
+  ],
+  "diagnosis": "native system.node executable mmap denied, not session JSONL requiring execution",
+  "native_loader_reference": "https://unpkg.com/node-addon-native-custom-loader@0.1.3/lib/index.js",
+  "production_formal_unit_acceptance": "pending; no gate modified"
+}

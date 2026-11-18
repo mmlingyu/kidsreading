@@ -1,0 +1,4 @@
+# Separate runtime from the Web CLI 0.2.2-rc.3; transitive binary is pinned too.
+deepseek-harness-sdk==0.2.2rc2
+deepseek-harness-runtime-bin==0.2.2rc2
+pydantic==2.14.3

@@ -1,0 +1,229 @@
+{
+  "different_real_uids": true,
+  "both_bootstrap_orders": true,
+  "concurrent_cross_uid_bootstrap": true,
+  "fresh_and_legacy_databases": true,
+  "outsider_uid_denied": true,
+  "migration_and_restarts": true,
+  "wal_shm_journal_0660": true,
+  "operations": [
+    {
+      "uid": 65533,
+      "gid": 1000,
+      "modes": {
+        "queue.sqlite3": "0o660",
+        "queue.sqlite3-wal": "0o660",
+        "queue.sqlite3-shm": "0o660",
+        "queue.sqlite3-journal": "0o660"
+      }
+    },
+    {
+      "uid": 65534,
+      "gid": 1000,
+      "modes": {
+        "queue.sqlite3": "0o660",
+        "queue.sqlite3-wal": "0o660",
+        "queue.sqlite3-shm": "0o660",
+        "queue.sqlite3-journal": "0o660"
+      }
+    },
+    {
+      "uid": 65533,
+      "gid": 1000,
+      "modes": {
+        "queue.sqlite3": "0o660",
+        "queue.sqlite3-wal": "0o660",
+        "queue.sqlite3-shm": "0o660",
+        "queue.sqlite3-journal": "0o660"
+      }
+    },
+    {
+      "uid": 65534,
+      "gid": 1000,
+      "modes": {
+        "queue.sqlite3": "0o660",
+        "queue.sqlite3-wal": "0o660",
+        "queue.sqlite3-shm": "0o660",
+        "queue.sqlite3-journal": "0o660"
+      }
+    },
+    {
+      "uid": 65533,
+      "gid": 1000,
+      "modes": {
+        "queue.sqlite3": "0o660",
+        "queue.sqlite3-wal": "0o660",
+        "queue.sqlite3-shm": "0o660",
+        "queue.sqlite3-journal": "0o660"
+      }
+    },
+    {
+      "uid": 65533,
+      "concurrent_bootstrap": true
+    },
+    {
+      "uid": 65534,
+      "concurrent_bootstrap": true
+    },
+    {
+      "uid": 65534,
+      "gid": 1000,
+      "modes": {
+        "queue.sqlite3": "0o660",
+        "queue.sqlite3-wal": "0o660",
+        "queue.sqlite3-shm": "0o660",
+        "queue.sqlite3-journal": "0o660"
+      }
+    },
+    {
+      "uid": 65533,
+      "gid": 1000,
+      "modes": {
+        "queue.sqlite3": "0o660",
+        "queue.sqlite3-wal": "0o660",
+        "queue.sqlite3-shm": "0o660",
+        "queue.sqlite3-journal": "0o660"
+      }
+    },
+    {
+      "uid": 65534,
+      "gid": 1000,
+      "modes": {
+        "queue.sqlite3": "0o660",
+        "queue.sqlite3-wal": "0o660",
+        "queue.sqlite3-shm": "0o660",
+        "queue.sqlite3-journal": "0o660"
+      }
+    },
+    {
+      "uid": 65533,
+      "gid": 1000,
+      "modes": {
+        "queue.sqlite3": "0o660",
+        "queue.sqlite3-wal": "0o660",
+        "queue.sqlite3-shm": "0o660",
+        "queue.sqlite3-journal": "0o660"
+      }
+    },
+    {
+      "uid": 65534,
+      "gid": 1000,
+      "modes": {
+        "queue.sqlite3": "0o660",
+        "queue.sqlite3-wal": "0o660",
+        "queue.sqlite3-shm": "0o660",
+        "queue.sqlite3-journal": "0o660"
+      }
+    },
+    {
+      "uid": 65534,
+      "concurrent_bootstrap": true
+    },
+    {
+      "uid": 65533,
+      "concurrent_bootstrap": true
+    },
+    {
+      "legacy_uid": 65533
+    },
+    {
+      "uid": 65534,
+      "gid": 1000,
+      "modes": {
+        "queue.sqlite3": "0o660",
+        "queue.sqlite3-wal": "0o660",
+        "queue.sqlite3-shm": "0o660",
+        "queue.sqlite3-journal": "0o660"
+      }
+    },
+    {
+      "uid": 65533,
+      "gid": 1000,
+      "modes": {
+        "queue.sqlite3": "0o660",
+        "queue.sqlite3-wal": "0o660",
+        "queue.sqlite3-shm": "0o660",
+        "queue.sqlite3-journal": "0o660"
+      }
+    },
+    {
+      "uid": 65534,
+      "gid": 1000,
+      "modes": {
+        "queue.sqlite3": "0o660",
+        "queue.sqlite3-wal": "0o660",
+        "queue.sqlite3-shm": "0o660",
+        "queue.sqlite3-journal": "0o660"
+      }
+    },
+    {
+      "uid": 65533,
+      "gid": 1000,
+      "modes": {
+        "queue.sqlite3": "0o660",
+        "queue.sqlite3-wal": "0o660",
+        "queue.sqlite3-shm": "0o660",
+        "queue.sqlite3-journal": "0o660"
+      }
+    },
+    {
+      "uid": 65533,
+      "concurrent_bootstrap": true
+    },
+    {
+      "uid": 65534,
+      "concurrent_bootstrap": true
+    },
+    {
+      "legacy_uid": 65534
+    },
+    {
+      "uid": 65533,
+      "gid": 1000,
+      "modes": {
+        "queue.sqlite3": "0o660",
+        "queue.sqlite3-wal": "0o660",
+        "queue.sqlite3-shm": "0o660",
+        "queue.sqlite3-journal": "0o660"
+      }
+    },
+    {
+      "uid": 65534,
+      "gid": 1000,
+      "modes": {
+        "queue.sqlite3": "0o660",
+        "queue.sqlite3-wal": "0o660",
+        "queue.sqlite3-shm": "0o660",
+        "queue.sqlite3-journal": "0o660"
+      }
+    },
+    {
+      "uid": 65533,
+      "gid": 1000,
+      "modes": {
+        "queue.sqlite3": "0o660",
+        "queue.sqlite3-wal": "0o660",
+        "queue.sqlite3-shm": "0o660",
+        "queue.sqlite3-journal": "0o660"
+      }
+    },
+    {
+      "uid": 65534,
+      "gid": 1000,
+      "modes": {
+        "queue.sqlite3": "0o660",
+        "queue.sqlite3-wal": "0o660",
+        "queue.sqlite3-shm": "0o660",
+        "queue.sqlite3-journal": "0o660"
+      }
+    },
+    {
+      "uid": 65534,
+      "concurrent_bootstrap": true
+    },
+    {
+      "uid": 65533,
+      "concurrent_bootstrap": true
+    }
+  ]
+}

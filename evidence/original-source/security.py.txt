@@ -1,0 +1,254 @@
+"""Static security scanner for shared HTML.
+
+Pure-regex, dependency-free heuristics. It never executes the page; it only
+inspects the source text and reports findings grouped by check. Results feed a
+gate in the UI: a card/preview is not clickable until a scan completes, and the
+verdict (safe / warning / danger) tells the viewer what was found.
+
+The engine is intentionally conservative: content runs in a no-same-origin
+sandbox iframe regardless, so most findings are informational. It exists to warn
+about phishing, miners, obfuscated payloads and exfiltration before a user
+interacts with untrusted HTML.
+"""
+from __future__ import annotations
+
+import re
+from dataclasses import asdict, dataclass
+from typing import Iterator, List, Tuple
+
+# Severity weights for the aggregate score.
+SEV_WEIGHT = {"info": 3, "warning": 20, "danger": 100}
+
+# Script/CDN hosts we treat as expected (Spine player, common CDNs).
+ALLOWED_HOSTS = (
+    "unpkg.com",
+    "cdn.jsdelivr.net",
+    "jsdelivr.net",
+    "cdnjs.cloudflare.com",
+    "esm.sh",
+    "ajax.googleapis.com",
+    "fonts.googleapis.com",
+    "fonts.gstatic.com",
+)
+
+# Ordered list of checks shown to the user as the "process".
+CHECK_LABELS: List[Tuple[str, str]] = [
+    ("external_scripts", "外部脚本来源"),
+    ("dangerous_api", "危险 JS API"),
+    ("obfuscation", "代码混淆 / 解码执行"),
+    ("crypto_mining", "挖矿脚本"),
+    ("data_exfiltration", "网络请求 / 数据外发"),
+    ("forms", "表单提交目标"),
+    ("phishing", "钓鱼 / 密码采集"),
+    ("redirect", "页面跳转 / 顶层导航"),
+    ("storage", "Cookie / 本地存储"),
+    ("embeds", "内嵌 iframe / 弹窗"),
+]
+
+
+@dataclass
+class Finding:
+    severity: str  # info | warning | danger
+    detail: str
+
+
+_SCRIPT_SRC_RE = re.compile(r"<script\b[^>]*\bsrc\s*=\s*[\"']([^\"']+)[\"']", re.I)
+_FORM_ACTION_RE = re.compile(r"<form\b[^>]*\baction\s*=\s*[\"']([^\"']+)[\"']", re.I)
+_URL_HOST_RE = re.compile(r"^(?:https?:)?//([^/]+)/?", re.I)
+
+
+def _host(url: str) -> str:
+    m = _URL_HOST_RE.match(url.strip())
+    return (m.group(1).lower() if m else "").split(":")[0]
+
+
+def _is_allowed(host: str) -> bool:
+    return any(host == h or host.endswith("." + h) for h in ALLOWED_HOSTS)
+
+
+def _count(pattern: str, html: str, flags=re.I) -> int:
+    return len(re.findall(pattern, html, flags))
+
+
+def _check_external_scripts(html: str) -> List[Finding]:
+    out: List[Finding] = []
+    for src in _SCRIPT_SRC_RE.findall(html):
+        s = src.strip()
+        if s.startswith("data:"):
+            out.append(Finding("warning", "内联 data: 脚本"))
+            continue
+        if s.startswith(("http://", "//", "https://")):
+            host = _host(s)
+            if s.startswith("http://"):
+                out.append(Finding("warning", f"明文 HTTP 脚本：{host}"))
+            elif not _is_allowed(host):
+                out.append(Finding("warning", f"第三方脚本来源：{host}"))
+            else:
+                out.append(Finding("info", f"可信 CDN 脚本：{host}"))
+    return out
+
+
+def _check_dangerous_api(html: str) -> List[Finding]:
+    out: List[Finding] = []
+    if _count(r"\beval\s*\(", html):
+        out.append(Finding("warning", "使用 eval() 动态执行代码"))
+    if _count(r"new\s+Function\s*\(", html):
+        out.append(Finding("warning", "使用 new Function() 动态执行"))
+    if _count(r"document\.write\s*\(", html):
+        out.append(Finding("info", "使用 document.write()"))
+    if _count(r"set(?:Timeout|Interval)\s*\(\s*[\"']", html):
+        out.append(Finding("warning", "以字符串形式定时执行代码"))
+    return out
+
+
+def _check_obfuscation(html: str) -> List[Finding]:
+    out: List[Finding] = []
+    has_atob = _count(r"\batob\s*\(", html)
+    has_unescape = _count(r"\bunescape\s*\(", html)
+    has_fromchar = _count(r"String\.fromCharCode", html)
+    has_exec = _count(r"\beval\s*\(|new\s+Function\s*\(", html)
+    if has_atob and has_exec:
+        out.append(Finding("danger", "base64 解码后直接执行（atob+eval）"))
+    elif has_atob:
+        out.append(Finding("info", "包含 base64 解码 atob()"))
+    if has_unescape and has_exec:
+        out.append(Finding("danger", "unescape 解码后执行"))
+    # Dense hex/percent escaping suggests packed payloads.
+    hex_escapes = _count(r"\\x[0-9a-fA-F]{2}", html)
+    if hex_escapes > 200:
+        out.append(Finding("warning", f"大量十六进制转义（{hex_escapes} 处），疑似混淆"))
+    if has_fromchar > 5:
+        out.append(Finding("warning", "频繁使用 fromCharCode 拼装代码"))
+    return out
+
+
+def _check_crypto_mining(html: str) -> List[Finding]:
+    pattern = r"coinhive|cryptonight|coinimp|webminer|deepminer|jsecoin|miner\.start|cryptoloot|webassembly\.instantiate\s*\([^)]*miner"
+    if _count(pattern, html):
+        return [Finding("danger", "检测到疑似浏览器挖矿代码")]
+    return []
+
+
+def _check_data_exfiltration(html: str) -> List[Finding]:
+    out: List[Finding] = []
+    if _count(r"navigator\.sendBeacon\s*\(", html):
+        out.append(Finding("warning", "使用 sendBeacon 上报数据"))
+    ws = _count(r"new\s+WebSocket\s*\(", html)
+    if ws:
+        out.append(Finding("info", "建立 WebSocket 连接"))
+    net = _count(r"\bfetch\s*\(", html) + _count(r"XMLHttpRequest", html)
+    if net:
+        out.append(Finding("info", f"发起网络请求（fetch/XHR，{net} 处）"))
+    return out
+
+
+def _check_forms(html: str) -> List[Finding]:
+    out: List[Finding] = []
+    for action in _FORM_ACTION_RE.findall(html):
+        a = action.strip()
+        if a.startswith(("http://", "https://", "//")):
+            host = _host(a)
+            sev = "danger" if _count(r"<input[^>]+type\s*=\s*[\"']password", html) else "warning"
+            out.append(Finding(sev, f"表单提交到外部地址：{host}"))
+    return out
+
+
+def _check_phishing(html: str) -> List[Finding]:
+    out: List[Finding] = []
+    has_pw = _count(r"<input[^>]+type\s*=\s*[\"']password[\"']", html)
+    kw = _count(r"密码|银行|信用卡|身份证|验证码|登录验证|verify your account|confirm your password|social security", html)
+    if has_pw:
+        out.append(Finding("warning", "包含密码输入框"))
+    if has_pw and kw:
+        out.append(Finding("danger", "密码输入框 + 敏感关键词，疑似钓鱼"))
+    return out
+
+
+def _check_redirect(html: str) -> List[Finding]:
+    out: List[Finding] = []
+    if _count(r"<meta[^>]+http-equiv\s*=\s*[\"']refresh", html):
+        out.append(Finding("warning", "meta refresh 自动跳转"))
+    if _count(r"\btop\.location|parent\.location|window\.top\.location", html):
+        out.append(Finding("warning", "尝试操作顶层窗口地址（沙箱已拦截）"))
+    if _count(r"\b(?:window\.)?location\s*(?:\.href)?\s*=", html):
+        out.append(Finding("info", "脚本设置页面地址"))
+    return out
+
+
+def _check_storage(html: str) -> List[Finding]:
+    out: List[Finding] = []
+    if _count(r"document\.cookie", html):
+        out.append(Finding("info", "访问 document.cookie（沙箱内为空）"))
+    if _count(r"\b(?:local|session)Storage\b", html):
+        out.append(Finding("info", "使用本地/会话存储"))
+    return out
+
+
+def _check_embeds(html: str) -> List[Finding]:
+    out: List[Finding] = []
+    frames = _count(r"<iframe\b", html)
+    if frames:
+        out.append(Finding("info", f"内嵌 {frames} 个 iframe"))
+    if _count(r"window\.open\s*\(", html):
+        out.append(Finding("info", "调用 window.open 弹窗"))
+    return out
+
+
+_FUNCS = {
+    "external_scripts": _check_external_scripts,
+    "dangerous_api": _check_dangerous_api,
+    "obfuscation": _check_obfuscation,
+    "crypto_mining": _check_crypto_mining,
+    "data_exfiltration": _check_data_exfiltration,
+    "forms": _check_forms,
+    "phishing": _check_phishing,
+    "redirect": _check_redirect,
+    "storage": _check_storage,
+    "embeds": _check_embeds,
+}
+
+
+def iter_checks(html: str) -> Iterator[dict]:
+    """Yield one result dict per check, in display order."""
+    for key, label in CHECK_LABELS:
+        findings = _FUNCS[key](html)
+        worst = _worst_severity(findings)
+        yield {
+            "key": key,
+            "label": label,
+            "status": worst or "pass",
+            "findings": [asdict(f) for f in findings],
+        }
+
+
+def _worst_severity(findings: List[Finding]) -> str:
+    order = {"info": 1, "warning": 2, "danger": 3}
+    worst = ""
+    for f in findings:
+        if not worst or order[f.severity] > order[worst]:
+            worst = f.severity
+    return worst
+
+
+def summarize(checks: List[dict]) -> dict:
+    score = 0
+    counts = {"info": 0, "warning": 0, "danger": 0}
+    for c in checks:
+        for f in c["findings"]:
+            counts[f["severity"]] += 1
+            score += SEV_WEIGHT[f["severity"]]
+    if counts["danger"] or score >= 60:
+        level = "danger"
+    elif counts["warning"] or score >= 15:
+        level = "warning"
+    else:
+        level = "safe"
+    label = {"safe": "安全", "warning": "注意", "danger": "危险"}[level]
+    return {"level": level, "label": label, "score": score, "counts": counts}
+
+
+def scan(html: str) -> dict:
+    """Run all checks synchronously and return the full report."""
+    checks = list(iter_checks(html))
+    summary = summarize(checks)
+    return {"checks": checks, **summary}

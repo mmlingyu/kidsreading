@@ -1,0 +1,308 @@
+"""Kid/parent game-port uploads: unpack into data/port-games and register jobs."""
+
+from __future__ import annotations
+
+import hashlib
+import importlib.util
+import io
+import json
+import re
+import shutil
+import tempfile
+import time
+import zipfile
+from pathlib import Path
+from typing import Iterable, Optional
+
+BASE_DIR = Path(__file__).resolve().parent
+PORT_ROOT = BASE_DIR / "data" / "port-games"
+REGISTRY_PATH = PORT_ROOT / "registry.json"
+MAX_BUNDLE_BYTES = 200 * 1024 * 1024
+GAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
+SKIP_NAMES = {"thumbs.db", "desktop.ini", ".ds_store", "__macosx"}
+
+
+class PortError(ValueError):
+    pass
+
+
+def configure(*, port_root: Optional[Path] = None) -> None:
+    global PORT_ROOT, REGISTRY_PATH
+    PORT_ROOT = Path(port_root) if port_root is not None else BASE_DIR / "data" / "port-games"
+    REGISTRY_PATH = PORT_ROOT / "registry.json"
+    PORT_ROOT.mkdir(parents=True, exist_ok=True)
+    (PORT_ROOT / "source").mkdir(parents=True, exist_ok=True)
+    (PORT_ROOT / "target").mkdir(parents=True, exist_ok=True)
+
+
+configure()
+
+
+def _adapt():
+    path = BASE_DIR / "skills" / "atb-game-porting" / "scripts" / "adapt-resources.py"
+    spec = importlib.util.spec_from_file_location("atb_adapt_resources", path)
+    if spec is None or spec.loader is None:
+        raise PortError("找不到资源整理脚本")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def slugify(title: str) -> str:
+    raw = (title or "").strip()
+    ascii_part = re.sub(r"[^A-Za-z0-9]+", "-", raw).strip("-").lower()
+    if ascii_part and GAME_RE.match(ascii_part):
+        return ascii_part[:48]
+    digest = hashlib.sha1((raw or "game").encode("utf-8")).hexdigest()[:8]
+    return f"game-{digest}"
+
+
+def play_href(slug: str) -> str:
+    return f"/ports/{slug}/web/"
+
+
+def playable(slug: str) -> bool:
+    return (PORT_ROOT / "target" / slug / "web" / "index.html").is_file()
+
+
+def source_ready(slug: str) -> bool:
+    root = PORT_ROOT / "source" / slug
+    if not root.is_dir():
+        return False
+    return any(path.is_file() for path in root.rglob("*"))
+
+
+def _load_registry() -> dict:
+    if not REGISTRY_PATH.is_file():
+        return {"games": []}
+    try:
+        data = json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {"games": []}
+    if not isinstance(data, dict):
+        return {"games": []}
+    games = data.get("games")
+    if not isinstance(games, list):
+        data["games"] = []
+    return data
+
+
+def _save_registry(data: dict) -> None:
+    REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    tmp = REGISTRY_PATH.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    tmp.replace(REGISTRY_PATH)
+
+
+def get_game(slug: str) -> Optional[dict]:
+    for item in _load_registry().get("games") or []:
+        if isinstance(item, dict) and item.get("slug") == slug:
+            return dict(item)
+    return None
+
+
+def _unique_slug(title: str, owner_id: str) -> str:
+    base = slugify(title)
+    existing = get_game(base)
+    if existing is None or existing.get("owner_id") == owner_id:
+        return base
+    for index in range(2, 40):
+        candidate = f"{base}-{index}"[:63]
+        if not GAME_RE.match(candidate):
+            continue
+        other = get_game(candidate)
+        if other is None or other.get("owner_id") == owner_id:
+            return candidate
+    raise PortError("这个名字已经被用了，换一个短一点的")
+
+
+def _safe_rel(raw: str) -> Path:
+    name = (raw or "").replace("\\", "/").lstrip("/")
+    path = Path(name)
+    if not name or path.is_absolute() or ".." in path.parts:
+        raise PortError("文件名不对")
+    if any(part.lower() in SKIP_NAMES or part.startswith(".") for part in path.parts):
+        raise PortError("这个文件不用传")
+    return path
+
+
+def _write_bytes(dest: Path, data: bytes) -> None:
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_bytes(data)
+
+
+def extract_zip(data: bytes, dest: Path) -> int:
+    dest.mkdir(parents=True, exist_ok=True)
+    try:
+        archive = zipfile.ZipFile(io.BytesIO(data))
+    except zipfile.BadZipFile as exc:
+        raise PortError("这个包打不开") from exc
+    count = 0
+    with archive:
+        for info in archive.infolist():
+            if info.is_dir():
+                continue
+            name = info.filename.replace("\\", "/")
+            if name.endswith("/"):
+                continue
+            try:
+                rel = _safe_rel(name)
+            except PortError:
+                if any(part.lower() == "__macosx" or part.startswith(".") for part in Path(name).parts):
+                    continue
+                raise
+            if rel.name.lower() in SKIP_NAMES:
+                continue
+            target = dest / rel
+            if dest.resolve() not in target.resolve().parents and target.resolve() != dest.resolve():
+                raise PortError("这个包打不开")
+            with archive.open(info) as src:
+                payload = src.read()
+            _write_bytes(target, payload)
+            count += 1
+    if count == 0:
+        raise PortError("这个包是空的")
+    return count
+
+
+def save_files(items: Iterable[tuple[str, bytes]], dest: Path) -> int:
+    dest.mkdir(parents=True, exist_ok=True)
+    count = 0
+    for raw_name, data in items:
+        rel = _safe_rel(raw_name)
+        if rel.name.lower() in SKIP_NAMES:
+            continue
+        _write_bytes(dest / rel, data)
+        count += 1
+    if count == 0:
+        raise PortError("还没有放进游戏文件")
+    return count
+
+
+def import_incoming(slug: str, incoming: Path) -> dict:
+    if not GAME_RE.match(slug or ""):
+        raise PortError("游戏名只能用字母、数字和短横线")
+    adapt = _adapt()
+    try:
+        source = adapt.game_dir("source", slug, PORT_ROOT)
+        target = adapt.game_dir("target", slug, PORT_ROOT)
+        adapt.scaffold(source, target)
+        adapt.import_bundle(incoming, source)
+        return adapt.sync_game(slug, PORT_ROOT)
+    except SystemExit as exc:
+        raise PortError(str(exc) or "整理材料失败") from exc
+
+
+def upsert_game(
+    *,
+    slug: str,
+    title: str,
+    owner_id: str,
+    project_id: str = "",
+    run_id: str = "",
+    status: str = "imported",
+    file_count: int = 0,
+) -> dict:
+    now = time.time()
+    data = _load_registry()
+    games = [item for item in data.get("games") or [] if isinstance(item, dict)]
+    row = None
+    for item in games:
+        if item.get("slug") == slug:
+            row = item
+            break
+    if row is None:
+        row = {
+            "slug": slug,
+            "created": now,
+            "owner_id": owner_id,
+        }
+        games.append(row)
+    if row.get("owner_id") and row["owner_id"] != owner_id:
+        raise PortError("这是别人的游戏")
+    row["title"] = (title or slug)[:80]
+    row["owner_id"] = owner_id
+    row["updated"] = now
+    row["status"] = status
+    row["file_count"] = file_count
+    if project_id:
+        row["project_id"] = project_id
+    if run_id:
+        row["run_id"] = run_id
+    data["games"] = games
+    _save_registry(data)
+    return dict(row)
+
+
+def public_row(row: dict) -> dict:
+    slug = str(row.get("slug") or "")
+    return {
+        "slug": slug,
+        "title": row.get("title") or slug,
+        "status": row.get("status") or "",
+        "project_id": row.get("project_id") or "",
+        "run_id": row.get("run_id") or "",
+        "file_count": int(row.get("file_count") or 0),
+        "playable": playable(slug),
+        "play_href": play_href(slug),
+        "created": row.get("created") or 0,
+        "updated": row.get("updated") or 0,
+    }
+
+
+def list_games(owner_id: str) -> list[dict]:
+    rows = []
+    for item in _load_registry().get("games") or []:
+        if not isinstance(item, dict):
+            continue
+        if item.get("owner_id") != owner_id:
+            continue
+        rows.append(public_row(item))
+    rows.sort(key=lambda item: item.get("updated") or 0, reverse=True)
+    return rows
+
+
+def ingest_upload(
+    *,
+    title: str,
+    owner_id: str,
+    archive: Optional[bytes] = None,
+    files: Optional[list[tuple[str, bytes]]] = None,
+) -> dict:
+    if not (title or "").strip():
+        raise PortError("先给游戏起个名字")
+    total = 0
+    if archive:
+        total += len(archive)
+    for _name, data in files or []:
+        total += len(data)
+    if total <= 0:
+        raise PortError("先把游戏包拖进来")
+    if total > MAX_BUNDLE_BYTES:
+        raise PortError("这个包太大了，要小于 200MB")
+    slug = _unique_slug(title, owner_id)
+    incoming = Path(tempfile.mkdtemp(prefix=f"port-{slug}-", dir=str(PORT_ROOT)))
+    try:
+        count = 0
+        if archive:
+            count += extract_zip(archive, incoming)
+        if files:
+            count += save_files(files, incoming)
+        manifest = import_incoming(slug, incoming)
+        row = upsert_game(
+            slug=slug,
+            title=title.strip(),
+            owner_id=owner_id,
+            status="imported",
+            file_count=count,
+        )
+        return {
+            "game": public_row(row),
+            "manifest": {
+                "outputs": len(manifest.get("outputs") or []),
+                "binaries": list(manifest.get("binaries") or []),
+                "web_assets": manifest.get("web_assets") or "",
+            },
+        }
+    finally:
+        shutil.rmtree(incoming, ignore_errors=True)
