@@ -125,8 +125,14 @@ class Worker:
                 # Original revision_prompt exact body, scoped to book-only sandbox.
                 prompt=revision_prompt({'module':'adventure-reader'},report,repairs)
                 resume=True
-        except Exception:
-            status,error='failed','isolated_worker_failed'
+        except Exception as exc:
+            if isinstance(exc,RuntimeError) and str(exc)=='unsafe_broker_directory':
+                # Fixed code only. Do not collapse this into isolated_worker_failed or log a path.
+                import logging
+                logging.getLogger('reader.worker').warning('reader_worker_error code=unsafe_broker_directory')
+                status,error='failed','unsafe_broker_directory'
+            else:
+                status,error='failed','isolated_worker_failed'
         finally:
             # All model/validation/fetch descendants and upstream TCP close BEFORE terminal state.
             if proc is not None:

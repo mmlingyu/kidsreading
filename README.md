@@ -1,17 +1,15 @@
-# kidsreading · R4 维护基线
+# kidsreading · R5（未验收）
 
-已验收发布是 `reader-phase1-20261117-r4`。分支 `R4` 保存这份源码；`main` 仍是原来的静态站，不从本分支合并。
+`R5` 从已验收提交 `580a0fa8e49aca1f3e24c3a26a4c31f9a390bdf0` 分出，接入腾讯云 Piper/Phonon。标签 `reader-phase1-20261117-r4` 仍指向该提交。本分支不合并，验收前不打 r5 稳定标签。
 
-- 要改的前端只在 `frontend/app/`。
-- 后端、技能、部署模板、测试、锁文件和原清单在仓库里按已验收树的路径存放。
-- `SHA256MANIFEST.txt` 与 `TRUSTED-SHA256.json` 保持已验收字节。维护文件不写进清单，也不改清单去声称新的部署哈希。
-- r5 和未完成的 TTS 服务工作没有进入本分支。
-- 本仓库不另加项目级 LICENSE。pixelfx 的许可只在 `frontend/app/vendor/pixelfx/LICENSE`。
-
-核对已验收文件：
+- 要改的前端只在 `frontend/app/`，overlay 与它保持同一 r5 cache-buster。
+- 产品说明见 `README.zh-CN.md`、`R5-CHANGES.zh-CN.md`、`deploy/RUNBOOK-r5.zh-CN.md`。
+- 可部署包：
 
 ```bash
-python3 maintenance/reproduce-r4-archive.py --check
+python3 tools/stage_release.py --output /tmp/reader-phase1-20261117-r5.tar.gz
 ```
 
-路径、版本标签、打包和测试边界见 `MAINTENANCE.zh-CN.md`。
+不要在本 Git 根目录直接运行 `tools/build_release.py`。本文件、`MAINTENANCE.zh-CN.md`、`docs/` 和历史 `tts/`、`speech.js`、`phonon-sw.js` 不属于发布包。
+
+最小凭据是 `/etc/reader/tts-client.env`（root:root 0600，只有 `TTS_API_TOKEN`），只由 reader-api 加载。示例门禁仍是六项 false，生成开关为 0。服务器必须按新的 `TRUSTED-SHA256.json` 重验，不能沿用 r4。

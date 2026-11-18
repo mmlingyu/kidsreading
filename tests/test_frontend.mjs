@@ -33,3 +33,13 @@ const imported=books.importBook(original);assert.equal(imported.ok,true);
 assert.equal(books.loadImported()[0].id,'tree-house-night');
 assert.equal(books.loadImported()[0].chapters[0].game.recall.length,original.chapters[0].game.recall.length);
 console.log('original local book fixture validation and explicit bookshelf import passed');
+
+// Trim only outer copy/paste whitespace; reject wrapped/prefixed secrets without echoing them.
+mod.configureReader(' https://reader.test ', ' \n'+ 'A'.repeat(48)+'\r\n ');
+await mod.readerRequest('/api/reader/health');
+assert.equal(seen.options.headers.Authorization,'Bearer '+'A'.repeat(48));
+for(const bad of ['Bearer '+'A'.repeat(48), '"'+'A'.repeat(48)+'"', 'A'.repeat(24)+' '+ 'A'.repeat(24)]) {
+  assert.throws(()=>mod.configureReader('',bad), error=>error.message.includes('纯 Reader Token')&&!error.message.includes('A'.repeat(48)));
+}
+mod.clearReaderToken();
+console.log('Reader Token outer-whitespace trim and pure-format non-disclosing validation PASS');

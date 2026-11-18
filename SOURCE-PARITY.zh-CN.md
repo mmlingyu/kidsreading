@@ -37,3 +37,6 @@
 
 ## r4部署安全适配
 原技能/QA/依赖锁不变。仅修正非root setgid请求、root预建烟测布局及发布版本一致性；不含TTS，不移除RestrictSUIDSGID或noexec。详见R4-CHANGES。
+
+## r5语音接入
+原技能全部字节、原QA四函数、生成prompt/repair编排、SDK/依赖锁保留；TTS独立Reader-auth API内新增固定loopback异步代理，不交给agent/worker。worker只增加固定脱敏诊断码。前端语音及同一状态模块URL更新，其他阅读内容/原书稿入库路径保留；详见R5-CHANGES。当前TTS协议依部署流现场只读交接，而非旧8790/Pocket历史材料。

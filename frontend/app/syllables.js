@@ -4,7 +4,7 @@
 //   · 美式 IPA /ˈmɑnstɚ/ —— 用于「认读音」，来自 CMU 发音词典离线生成的精简词表。
 // 书中全部核心词有人工核对的音节词典；划选到词典外的词才用拼读规则兜底（标记为规则推测）。
 // 音标不猜测：词典未收录的词不编造读音，只显示音节并提示可听发音。
-import { S, utter, esc, stopSpeech } from "./state.js";
+import { S, utter, esc, stopSpeech } from "./state.js?v=reader-phase1-r5";
 import { IPA } from "./data/ipa.js";
 
 // ---------- 拼写音节词典：两本书全部核心词 + 正文高频词 + 常见规则例外 ----------

@@ -4,7 +4,7 @@ import { FxStage } from "./fx.js";
 import { Stage, SCENES } from "./scene.js";
 import { sound, SCORES } from "./audio.js";
 import { Guide, HINTS } from "./guide.js";
-import { S, addXp, addItem, addWord, finishChapter, toast, speak, esc } from "./state.js";
+import { S, addXp, addItem, addWord, finishChapter, toast, speak, esc } from "./state.js?v=reader-phase1-r5";
 
 const AMBIENT = {
   1: "weather/clouds", 2: "weather/fireflies", 3: "lightning/charge-up",

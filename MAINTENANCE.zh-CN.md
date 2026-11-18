@@ -1,10 +1,12 @@
 # 维护与版本约定
 
+本文件在 `R5` 分支上。已验收的 r4 仍是标签 `reader-phase1-20261117-r4` 指向的 `580a0fa8e49aca1f3e24c3a26a4c31f9a390bdf0`。不要移动该标签，不要合并本分支，也不要在验收前打 r5 稳定标签。可部署包用 `python3 tools/stage_release.py --output /tmp/reader-phase1-20261117-r5.tar.gz` 生成，不会带上本文件、`docs/` 或历史 `tts/`。
+
 ## 这条分支是什么
 
-`R4` 是已验收 `reader-phase1-20261117-r4` 的源码维护线。它从 `main` 的 `cf4d8b54a20ae45ad560fdcc67781adb32d1fb73` 分出，保留该提交之前的全部历史。不改写、不压缩、不合并不强制更新 `main`。
+`R5` 从已验收 r4 提交 `580a0fa8e49aca1f3e24c3a26a4c31f9a390bdf0` 分出，接入 Piper/Phonon。它还没有验收。`R4` 分支和 `main` 保持原样。
 
-附注标签 `reader-phase1-20261117-r4` 指向本基线的最终提交。提交 SHA 写在标签说明里，用下面的命令读取，不要把 SHA 写进 `SHA256MANIFEST.txt`：
+附注标签 `reader-phase1-20261117-r4` 仍指向 r4 提交，不是本 `R5` 分支的头。用下面的命令核对，不要移动它，也不要把 r5 的新清单哈希写回 r4：
 
 ```bash
 git rev-parse reader-phase1-20261117-r4^{}
@@ -13,14 +15,14 @@ git for-each-ref refs/tags/reader-phase1-20261117-r4 --format='%(contents)'
 
 `main` 继续是迁移前的根目录静态站。审查本分支的差异时不要把它合并进 `main`，除非另有明确决定。
 
-r5 已停止，不在本树里，也不要在这条基线上接着做。已验收说明里的后续 Piper/Phonon 服务工作同样停在本基线之外。
+r4 标签描述的是上一节之前的已验收静态基线。Piper/Phonon 只在 `R5` 上，部署须按 r5 的新 trusted hash 重验，不能继承 r4 签署。
 
 ## 目录
 
 | 路径 | 角色 |
 |---|---|
-| `frontend/app/` | 唯一继续维护的前端。字节与已验收 r4 一致。 |
-| `frontend-overlay/` | 已验收发布里的冻结覆盖层，不是第二处维护点。其中 `app/index.html` 的脚本参数仍是 `app.js?v=reader-phase1-r2`，与 `frontend/app/index.html` 的 `reader-phase1-r4` 只差这一处。不要为了“改齐”去改覆盖层。 |
+| `frontend/app/` | 唯一继续维护的前端。r5 与 overlay 使用同一个 `reader-phase1-r5` cache-buster。 |
+| `frontend-overlay/` | 与 `frontend/app` 中对应文件保持同一 r5 字节，不是另一套语音实现。 |
 | `reader_service/` `skills/` `deploy/` `tests/` `tools/` `evidence/` | 已验收后端、原技能、部署模板、QA 与证据，路径和字节保持原样。 |
 | `SHA256MANIFEST.txt` `TRUSTED-SHA256.json` `requirements*.txt` `requirements-linux-py312.lock` | 已验收清单、可信哈希和依赖锁。 |
 | `tts/` `speech.js` `phonon-sw.js` `test-speech-plan.mjs` `test-synth-queue.mjs` | `main` 上已有的 Phonon/Kokoro 离线语音工具。它们不属于 r4 清单。相对路径仍指向仓库根，所以留在原处，不删、不改。 |

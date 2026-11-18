@@ -1,0 +1,11 @@
+{
+  "current_contract": "Deployment workflow read-only protocol handoff, 2026-11-17 21:50 Asia/Shanghai; apiVersion1.2.0 serviceVersion1.1.0; this executor did not contact the host",
+  "source_archive_sha256": "4cf14bac04090d032983498f5bef494f69e40499663a816583e91ff0955e928b",
+  "public_phonon_manifest_sha256": "4b9d8af4a9f377cc984692bedd1667f20931bbe7cbf59c3db2bed927a6ed46ab",
+  "fixture_note": "Public manifest metadata plus default; not a live voices response or a claim all voices were synthesized. Runtime always queries the authenticated upstream; no fixed UI count.",
+  "historical_docs": {
+    "docs__API.zh-CN.md": "2c96e517b6a28fc57f55681315356ee82b34ee655edb22346bbe0a285a4087fe",
+    "docs__API-INTEGRATION.zh-CN.md": "c5654369b1e358da86ac5bcf5a4d170ee41083c357b4e06ea143d09caa8c89fa"
+  },
+  "historical_document_caution": "Box archive documents inspected still describe a separate 8790 Phonon endpoint; do not use that old routing. Current unified phonon engine contract is the explicit deployment handoff."
+}

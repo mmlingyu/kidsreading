@@ -43,7 +43,7 @@ def run_probe(parent,runtime,cache,require_root=True,prepared_data=None,check_se
     saved=(module.accepted,module.verify_manifest,module.verify_cache,subprocess.Popen,os.environ.get('READER_ENABLE_GENERATION'),os.environ.get('READER_RUNTIME_CACHE'))
     if require_root and prepared_data is None:raise RuntimeError('root_prepared_probe_data_required')
     if prepared_data is not None and len(os.fsencode(str(Path(prepared_data)/'run'/('0'*32+'.sock'))))>107:raise RuntimeError('probe_unix_socket_path_too_long')
-    context=contextlib.nullcontext(str(Path(prepared_data).parent)) if prepared_data is not None else tempfile.TemporaryDirectory(prefix='r4-noexec-probe-',dir=parent)
+    context=contextlib.nullcontext(str(Path(prepared_data).parent)) if prepared_data is not None else tempfile.TemporaryDirectory(prefix='r5-noexec-probe-',dir=parent)
     with context as tmp:
         base=Path(tmp);audit=base/'fake-broker-count';processes=[]
         mode_audit={'explicit_setid_requests_after_guard':0}

@@ -7,7 +7,7 @@ state=$(systemctl is-active reader-worker || true)
 [ "$state" = inactive ] || [ "$state" = failed ] || { echo 'Stop reader-worker before probe'; exit 2; }
 DIR=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
 ID=$(python3 -c 'import uuid;print(uuid.uuid4().hex)')
-BASE=/var/lib/reader/jobs/.r4-$ID
+BASE=/var/lib/reader/jobs/.r5-$ID
 UNIT=reader-noexec-smoke@$ID.service
 # Source group/SGID validation and the real mount check must precede fixture creation.
 python3 - "$BASE" <<'PY'
@@ -40,7 +40,7 @@ if [ "$STATE" = inactive ] || [ "$STATE" = failed ]; then
 import os,re,shutil,sys
 from pathlib import Path
 p=Path(sys.argv[1]);marker=p/'.root-created-reader-probe'
-if p.parent!=Path('/var/lib/reader/jobs') or not re.fullmatch(r'\.r4-[a-f0-9]{32}',p.name) or p.is_symlink() or p.stat().st_uid!=0:raise SystemExit('unsafe probe cleanup')
+if p.parent!=Path('/var/lib/reader/jobs') or not re.fullmatch(r'\.r5-[a-f0-9]{32}',p.name) or p.is_symlink() or p.stat().st_uid!=0:raise SystemExit('unsafe probe cleanup')
 if marker.is_symlink() or marker.stat().st_uid!=0 or marker.read_text()!=p.name:raise SystemExit('invalid root probe marker')
 shutil.rmtree(p)
 PY

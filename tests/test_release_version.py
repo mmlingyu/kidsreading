@@ -4,7 +4,7 @@ from reader_service.sandbox import ROOT
 
 def test_canonical_package_version_matches_release_folder():
     assert VERSION==ROOT.name
-    assert VERSION=='reader-phase1-20261117-r4'
+    assert VERSION=='reader-phase1-20261117-r5'
     assert 'app.js?v=reader-phase1-'+VERSION.rsplit('-',1)[-1] in (ROOT/'frontend/app/index.html').read_text()
 
 def test_health_identifies_current_release():
@@ -25,7 +25,7 @@ def test_builder_refuses_mismatched_release_version(tmp_path):
     (release/'tools').mkdir(parents=True)
     (release/'reader_service').mkdir()
     shutil.copyfile(ROOT/'tools/build_release.py',release/'tools/build_release.py')
-    (release/'reader_service/__init__.py').write_text("VERSION = 'reader-phase1-20261117-r4'\n")
+    (release/'reader_service/__init__.py').write_text("VERSION = 'reader-phase1-20261117-r5'\n")
     run=subprocess.run([sys.executable,str(release/'tools/build_release.py')],capture_output=True,text=True,env={'PATH':'/usr/bin:/bin','PYTHONDONTWRITEBYTECODE':'1'})
     assert run.returncode!=0 and 'VERSION mismatch' in run.stderr
     assert not (release/'SHA256MANIFEST.txt').exists()

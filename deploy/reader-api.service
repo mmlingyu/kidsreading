@@ -9,8 +9,10 @@ Group=reader-data
 UMask=0007
 WorkingDirectory=/opt/reader/current
 EnvironmentFile=/etc/reader/api.env
+# Optional until root securely provisions the independent TTS-only credential.
+EnvironmentFile=-/etc/reader/tts-client.env
 Environment=PYTHONDONTWRITEBYTECODE=1
-ExecStart=/opt/reader-runtime/bin/python -m uvicorn reader_service.api:create_app --factory --host 127.0.0.1 --port 6010 --workers 1 --no-access-log --no-proxy-headers --log-level warning
+ExecStart=/opt/reader-runtime/bin/python -m uvicorn reader_service.api:create_app --factory --host 127.0.0.1 --port 6010 --workers 1 --limit-concurrency 16 --no-access-log --no-proxy-headers --log-level warning
 OOMPolicy=kill
 Restart=on-failure
 RestartSec=3

@@ -10,6 +10,8 @@ Group=reader-data
 UMask=0007
 WorkingDirectory=/opt/reader/current
 EnvironmentFile=/etc/reader/worker.env
+# Defense in depth against accidental manager-wide credential inheritance.
+UnsetEnvironment=TTS_API_TOKEN
 Environment=PYTHONDONTWRITEBYTECODE=1
 ExecStart=/opt/reader-runtime/bin/python -m reader_service.worker
 OOMPolicy=kill

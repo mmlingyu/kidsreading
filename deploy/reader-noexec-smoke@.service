@@ -1,5 +1,5 @@
 [Unit]
-Description=Reader r4 real SDK noexec synthetic regression
+Description=Reader r5 real SDK noexec synthetic regression
 After=network-online.target var-lib-reader-jobs.mount
 BindsTo=var-lib-reader-jobs.mount
 Wants=network-online.target
@@ -12,7 +12,7 @@ WorkingDirectory=/opt/reader/current
 Environment=READER_RUNTIME_CACHE=/opt/reader-runtime-cache-0.2.2rc2
 Environment=PYTHONDONTWRITEBYTECODE=1
 ExecStartPre=/usr/bin/bwrap --version
-ExecStart=/usr/bin/env -i PATH=/usr/bin:/bin PYTHONDONTWRITEBYTECODE=1 /opt/reader-runtime/bin/python -m tools.noexec_smoke --parent /var/lib/reader/jobs --data /var/lib/reader/jobs/.r4-%i/data
+ExecStart=/usr/bin/env -i PATH=/usr/bin:/bin PYTHONDONTWRITEBYTECODE=1 /opt/reader-runtime/bin/python -m tools.noexec_smoke --parent /var/lib/reader/jobs --data /var/lib/reader/jobs/.r5-%i/data
 OOMPolicy=kill
 Restart=no
 RestartSec=5

@@ -1,11 +1,11 @@
-import {configureReader, readerRequest, getReaderBase} from './reader-api.js';
+import {configureReader, readerRequest, getReaderBase, clearReaderToken, hasReaderToken} from './reader-api.js?v=reader-phase1-r5';
 import { byId, allVocab, catalog } from "./data/bookshelf.js?v=2";
 import { importBook, removeImported, clearImported , validateBook} from "./data/import-book.js";
-import { S, save, addXp, addWord, reset, resetBook, setBook, finishChapter, recordRecall, toast, speak, utter, stopSpeech, esc } from "./state.js?v=24";
+import { S, save, addXp, addWord, reset, resetBook, setBook, finishChapter, recordRecall, toast, speak, utter, stopSpeech, esc } from "./state.js?v=reader-phase1-r5";
 import {
-  setEnglishEngine, setPocketVoice, setPhononVoice, ttsEngines, voicesForEngine,
-  migrateEngine, engineFamily, defaultVoiceForEngine, voiceLabel,
-} from "./tts.js?v=dual5";
+  setEnglishEngine, setPiperVoice, setPhononVoice, ttsEngines, voicesForEngine,
+  migrateEngine, engineFamily, defaultVoiceForEngine, voiceLabel, refreshVoices, setTtsStatus,
+} from "./tts.js?v=reader-phase1-r5";
 import { mountGame } from "./game.js";
 import { syllableText, syllableHTML, ipaText, ipaHTML, readSyllables } from "./syllables.js";
 import { mountSelection, destroySelection, selectionText } from "./selection.js";
@@ -61,7 +61,9 @@ function syncActive() {
 
 function go(hash) { location.hash = hash; }
 let importTimer = 0;
+let audioConfigController=null;
 function closeModal() {
+  audioConfigController?.abort();audioConfigController=null;
   if (importTimer) { clearInterval(importTimer); importTimer = 0; }
   modal.classList.add("hidden");
   modal.innerHTML = "";
@@ -69,7 +71,7 @@ function closeModal() {
 function showModal(html) {
   modal.innerHTML = `<div class="box">${html}</div>`;
   modal.classList.remove("hidden");
-  modal.onclick = (e) => { if (e.target === modal) closeModal(); };
+  modal.onclick = (e) => { if (e.target === modal) {const audioPane=!!modal.querySelector("#audio-controls");closeModal();if(audioPane)render();} };
 }
 
 function shell(inner, opts = {}) {
@@ -78,12 +80,14 @@ function shell(inner, opts = {}) {
       <div class="brand"><span class="bolt">⚡</span><span>${opts.brand || "小小冒险家 · 英语分级阅读"}</span></div>
       <div class="spacer"></div>
       <span class="chip book-chip" title="当前在读">📖 ${esc(BOOK.zh || BOOK.title)}</span>
+      <button class="btn small" id="m-audio">🔊 语音与连接</button>
+      <button class="btn small" id="m-stop-audio">停止朗读</button>
       <span class="chip xp">⭐ ${S.xp} XP</span>
       <button class="btn small" id="m-vocab">📒 单词本 (${S.words.length})</button>
       <button class="btn small" id="m-known">知识库 (${S.known.length})</button>
       <button class="btn small" id="m-wrong">错题本 (${S.mistakes.length})</button>
       ${opts.home ? "" : '<button class="btn small" id="m-home">📚 书架</button>'}
-    </div>${inner}`;
+    </div><p class="tts-status" role="status" aria-live="polite"></p>${inner}`;
 }
 
 function speakRecall(item) {
@@ -116,38 +120,33 @@ function voiceSelect() {
   const list = voicesForEngine(engine);
   let current = family === "phonon"
     ? (S.settings.phononVoice || "default")
-    : (S.settings.pocketVoice || "alba");
+    : (S.settings.piperVoice || "");
   if (!list.some((item) => item.id === current)) {
     current = defaultVoiceForEngine(engine);
     if (family === "phonon") S.settings.phononVoice = current;
-    else S.settings.pocketVoice = current;
+    else S.settings.piperVoice = current;
+    if(family==="phonon")setPhononVoice(current);else setPiperVoice(current);
   }
-  const groups = [
-    { key: "unknown", label: "默认" },
-    { key: "female", label: "女声" },
-    { key: "male", label: "男声" },
-  ];
-  const options = groups.map(({ key, label }) => {
-    const items = list.filter((item) => (item.gender || "unknown") === key);
-    if (!items.length) return "";
-    return `<optgroup label="${label}">${items.map((item) => (
-      `<option value="${item.id}"${item.id === current ? " selected" : ""}>${esc(voiceLabel(item))}</option>`
-    )).join("")}</optgroup>`;
-  }).join("");
-  const label = family === "phonon" ? "Phonon 音色" : "Pocket 音色";
+  if (!list.length) return `<span class="import-note">请点「语音与连接」加载云端音色</span>`;
+  const options=list.map(item=>`<option value="${esc(item.id)}"${item.id===current?' selected':''}>${esc(voiceLabel(item))}</option>`).join('');
+  const label = family === "phonon" ? "Phonon 英文音色" : "Piper 英文音色";
   return `<label class="engine-pick">${label} <select class="tts-voice">${options}</select></label>`;
 }
 
 function engineToast(id) {
   return ({
-    "phonon-api": "英文改用 Phonon 本机",
-    "pocket-api": "英文改用 Pocket 本机",
-    "pocket-wasm": "英文改用 Pocket 网页",
+    "phonon-api": "英文使用腾讯云 Phonon",
+    "piper-api": "多语言使用腾讯云 Piper",
     browser: "英文改用浏览器语音",
   })[id] || "已切换英文朗读";
 }
 
 function bindShell() {
+  audioStatus(speechStatus);
+  const audioButton=document.querySelector("#m-audio");
+  if(audioButton)audioButton.onclick=openAudioSettings;
+  const stopButton=document.querySelector("#m-stop-audio");
+  if(stopButton)stopButton.onclick=()=>{stopSpeech();audioStatus("朗读已停止");};
   const v = document.querySelector("#m-vocab");
   if (v) v.onclick = openVocabBook;
   const known = document.querySelector("#m-known");
@@ -167,11 +166,11 @@ function bindShell() {
           S.settings.phononVoice = defaultVoiceForEngine(engine);
         }
         setPhononVoice(S.settings.phononVoice);
-      } else if (family === "pocket") {
-        if (!voicesForEngine(engine).some((item) => item.id === S.settings.pocketVoice)) {
-          S.settings.pocketVoice = defaultVoiceForEngine(engine);
+      } else if (family === "piper") {
+        if (!voicesForEngine(engine).some((item) => item.id === S.settings.piperVoice)) {
+          S.settings.piperVoice = defaultVoiceForEngine(engine);
         }
-        setPocketVoice(S.settings.pocketVoice);
+        setPiperVoice(S.settings.piperVoice);
       }
       save();
       stopSpeech();
@@ -191,15 +190,62 @@ function bindShell() {
         setPhononVoice(voice.id);
         toast(`Phonon 音色换成 ${voiceLabel(voice)}`);
       } else {
-        S.settings.pocketVoice = voice.id;
-        setPocketVoice(voice.id);
-        toast(`Pocket 音色换成 ${voiceLabel(voice)}`);
+        S.settings.piperVoice = voice.id;
+        setPiperVoice(voice.id);
+        toast(`Piper 音色换成 ${voiceLabel(voice)}`);
       }
       save();
       stopSpeech();
       app.querySelectorAll(".tts-voice").forEach((other) => { other.value = voice.id; });
     };
   });
+}
+
+let speechStatus='';
+function audioStatus(message){speechStatus=message;document.querySelectorAll('.tts-status').forEach(el=>{el.textContent=message;});}
+setTtsStatus(audioStatus);
+function openAudioSettings(){
+  stopSpeech();
+  showModal(`<h3>语音与连接</h3>
+    <p>腾讯云Piper / Phonon，共用导入的Reader Token；仅存当前页内存，刷新需重填。不要填TTS Token或模型Key。</p>
+    <p>Phonon仅英文，中文提示明确使用浏览器语音；Piper按朗读语言选对应音色。云端失败不会自动切换浏览器。</p>
+    <label>Reader Token <input id="audio-token" type="password" autocomplete="off" spellcheck="false" placeholder="${hasReaderToken()?'已在内存；留空复用':'请输入Reader Token'}" /></label>
+    <p>语音固定使用当前站点，保存会将导入服务源切回同源。</p>
+    <button class="btn small" id="audio-connect">保存连接并刷新音色</button>
+    <button class="btn small ghost" id="audio-forget">清除内存Token</button>
+    <p id="audio-info" role="status"></p><div id="audio-controls"></div>
+    <button class="btn small ghost" id="audio-close">关闭</button>`);
+  const info=modal.querySelector('#audio-info');
+  const paint=()=>{
+    const engine=migrateEngine(S.settings.engine);const voices=voicesForEngine(engine);
+    modal.querySelector('#audio-controls').innerHTML=`<label>朗读引擎 <select id="audio-engine">${ttsEngines.map(e=>`<option value="${e.id}"${e.id===engine?' selected':''}>${esc(e.label)}</option>`).join('')}</select></label>
+      ${engine==='browser'?'':`<label>英文音色 <select id="audio-voice">${voices.map(v=>`<option value="${esc(v.id)}"${v.id===S.settings[engineFamily(engine)+'Voice']?' selected':''}>${esc(voiceLabel(v))}</option>`).join('')}</select></label>`}
+      ${engine==='piper-api'?`<details><summary>Piper其他语言音色（可选）</summary>${[['zh','中文'],['fr','法语'],['ja','日语'],['ko','韩语']].map(([code,label])=>`<label>${label} <select data-piper-language="${code}">${voicesForEngine(engine,code).map(v=>`<option value="${esc(v.id)}"${v.id===S.settings.piperVoices?.[code]?' selected':''}>${esc(voiceLabel(v))}</option>`).join('')}</select></label>`).join('')}</details>`:''}
+      <details><summary>全部音色与源授权标识（实时列表）</summary><ul>${['piper-api','phonon-api'].flatMap(e=>voicesForEngine(e,'')).map(v=>`<li>${esc(v.engine+' · '+voiceLabel(v))}</li>`).join('')}</ul></details>`;
+    modal.querySelector('#audio-engine').onchange=e=>{
+      stopSpeech();S.settings.engine=migrateEngine(e.target.value);setEnglishEngine(S.settings.engine);save();paint();
+    };
+    modal.querySelectorAll('[data-piper-language]').forEach(select=>{select.onchange=()=>{
+      stopSpeech();const language=select.dataset.piperLanguage;S.settings.piperVoices[language]=select.value;setPiperVoice(select.value,language);save();
+    };});
+    const select=modal.querySelector('#audio-voice');
+    if(select)select.onchange=e=>{
+      stopSpeech();const family=engineFamily(S.settings.engine);S.settings[family+'Voice']=e.target.value;
+      if(family==='piper')setPiperVoice(e.target.value);else setPhononVoice(e.target.value);save();
+    };
+  };
+  modal.querySelector('#audio-connect').onclick=async()=>{
+    const input=modal.querySelector('#audio-token');const button=modal.querySelector('#audio-connect');
+    try{
+      configureReader('',input.value);input.value='';button.disabled=true;info.textContent='正在串行加载Piper、Phonon音色…';
+      audioConfigController?.abort();const controller=new AbortController();audioConfigController=controller;
+      await refreshVoices(controller.signal);if(controller.signal.aborted)return;
+      info.textContent=`已加载Piper ${voicesForEngine('piper-api','').length}条、Phonon ${voicesForEngine('phonon-api','').length}条。数量来自实时响应，不代表全部试听。`;
+      paint();
+    }catch(error){if(error.name!=='AbortError'){info.textContent=error.message;paint();}}finally{button.disabled=false;}
+  };
+  modal.querySelector('#audio-forget').onclick=()=>{stopSpeech();audioConfigController?.abort();audioConfigController=null;clearReaderToken();modal.querySelector('#audio-token').value='';info.textContent='Reader Token已从内存清除';};
+  modal.querySelector('#audio-close').onclick=()=>{closeModal();render();};paint();
 }
 
 // ---------------- 书架卡片 ----------------
