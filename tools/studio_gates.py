@@ -370,6 +370,89 @@ def asgi_status(app, method, path, headers=None, body=b''):
     asyncio.run(app(scope, receive, send))
     return status.get('code')
 
+def probe_job_lifecycle():
+    """One filtered process: inherited SGID, no explicit set-id, failed jobs release the slot."""
+    script=r'''
+import os, stat, sys, tempfile
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+os.umask(0o007)
+from tools.restrict_suid_sgid import install
+from reader_service.studio_store import StudioSettings, StudioStore
+from reader_service.studio_worker import StudioWorker
+import reader_service.studio_worker as worker_mod
+parent=Path(sys.argv[2])/'share'
+parent.mkdir(mode=0o770)
+os.chmod(parent, 0o2770)
+(parent/'jobs').mkdir(mode=0o770)
+os.chmod(parent/'jobs', 0o2770)
+install()
+child=parent/'jobs'/'inherited'
+child.mkdir(mode=0o770)
+mode=stat.S_IMODE(child.stat().st_mode)
+if not mode & stat.S_ISGID:
+    raise SystemExit('setgid was not inherited from the prepared parent')
+try:
+    (parent/'jobs'/'explicit').mkdir(mode=0o2770)
+    raise SystemExit('explicit setgid mkdir was allowed')
+except PermissionError:
+    pass
+try:
+    os.chmod(child, 0o2770)
+    raise SystemExit('explicit setgid chmod was allowed')
+except PermissionError:
+    pass
+worker_mod.generation_enabled=lambda: True
+worker_mod.accepted=lambda path=None: True
+store=StudioStore(StudioSettings(parent, {'a':'ann'}))
+store.s.max_hour=10
+class Boom(StudioWorker):
+    def start_agent(self, work, prompt, sock=None):
+        raise RuntimeError('injected')
+class Page(StudioWorker):
+    def start_agent(self, work, prompt, sock=None):
+        (work/'outputs'/'preview.html').write_text('<!doctype html><html><body><p>local only page for a sandboxed preview.</p></body></html>', encoding='utf-8')
+        (work/'outputs'/'report.md').write_text('结构、交互、依赖和验证都已写明。'*6, encoding='utf-8')
+        class Done:
+            def poll(self): return 0
+            def wait(self, timeout=None): return 0
+        return Done()
+row=store.create('ann', {'skill':'html-builder','brief':'失败也要释放并发'})
+claimed=store.claim()
+Boom(store, model_key='x').run_one(claimed)
+if store.get('ann', row['id'])['status']!='failed':
+    raise SystemExit('a filtered failure left the job running')
+again=store.create('ann', {'skill':'html-builder','brief':'失败后可以再创建'})
+if again['status']!='queued':
+    raise SystemExit('quota stayed occupied')
+running=store.claim()
+cancelled=store.cancel('ann', running['id'])
+if cancelled['status']!='cancelled':
+    raise SystemExit('cancel was blocked')
+stuck=store.create('ann', {'skill':'html-builder','brief':'重启前的遗留'})
+store.claim()
+ids=store.recover_orphans('studio_orphan_recovered')
+if ids!=[stuck['id']] or store.get('ann', stuck['id'])['status']!='failed' or store.get('ann', stuck['id'])['error']!='studio_orphan_recovered':
+    raise SystemExit('orphan recovery did not fail the leftover')
+page=store.create('ann', {'skill':'html-builder','brief':'发布检查'})
+Page(store, model_key='x').run_one(store.claim())
+done=store.get('ann', page['id'])
+if done['status']!='ready':
+    raise SystemExit('filtered publish failed: '+done['error'])
+published=store.jobdir(page['id'])/'published'
+if oct(stat.S_IMODE((published/'preview.html').stat().st_mode) & 0o777)!='0o660':
+    raise SystemExit('published file mode')
+print('lifecycle-ok')
+'''
+    base=Path(tempfile.mkdtemp(prefix='studio-layout-'))
+    try:
+        result=subprocess.run([sys.executable,'-c',script,str(ROOT),str(base)], capture_output=True, text=True, timeout=60)
+        if result.returncode!=0 or 'lifecycle-ok' not in result.stdout:
+            detail=(result.stderr or result.stdout or 'layout probe failed')[-500:]
+            fail('filesystem_hard_quota', detail)
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
+
 def probe_auth():
     import hashlib
     from reader_service.studio_api import create_app
@@ -496,6 +579,7 @@ def run(evidence_path):
         verify(config)
         if evidence.exists():
             evidence.unlink()
+        probe_job_lifecycle()
         for name, func in PROBES:
             func()
             results[name]=True

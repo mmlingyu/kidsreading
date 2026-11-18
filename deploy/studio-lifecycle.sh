@@ -104,9 +104,13 @@ PY
       systemctl restart studio-api.service studio-worker.service
     fi
     ;;
+  recover)
+    [ "$(id -u)" = 0 ] || { echo 'root required'; exit 2; }
+    python3 "$SRC/tools/studio_recover.py"
+    ;;
   rollback) exec "$SRC/deploy/rollback-studio.sh" --stop-studio ;;
   *)
-    echo 'Usage: studio-lifecycle.sh prepare|start|health|gate|enable|disable|rollback'
+    echo 'Usage: studio-lifecycle.sh prepare|start|health|gate|enable|disable|recover|rollback'
     exit 2
     ;;
 esac

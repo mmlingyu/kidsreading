@@ -2,6 +2,7 @@
 import json, os, stat, time
 from pathlib import Path
 from .sandbox import ROOT, spawn, terminate
+from .studio_store import plain_dir
 from .studio_catalog import skill
 from .studio_prompts import initial
 from .studio_review import review
@@ -35,7 +36,7 @@ class StudioWorker:
     def start_gateway(self, row, key):
         import subprocess, sys
         run=self.store.root/'run'
-        run.mkdir(mode=0o700, exist_ok=True)
+        plain_dir(run, 0o700)
         os.chmod(run, 0o700)
         st=run.lstat()
         if not stat.S_ISDIR(st.st_mode) or st.st_uid!=os.geteuid() or st.st_mode & 0o077:
@@ -93,33 +94,33 @@ class StudioWorker:
             time.sleep(.05)
         return 'exited'
     def run_one(self, row, key=None):
-        item=skill(row['skill'])
-        if item is None or item['status']!='enabled':
-            self._stop(row,'failed','studio_skill_blocked')
-            return
-        if not generation_enabled() or not accepted():
-            self._stop(row,'failed','studio_generation_disabled')
-            return
-        work=self.store.jobdir(row['id'])
-        if work.exists():
-            self._stop(row,'failed','studio_jobdir_exists')
-            return
-        work.parent.mkdir(mode=0o2770, exist_ok=True)
-        work.mkdir(mode=0o2770)
-        (work/'inputs').mkdir(mode=0o2770)
-        (work/'outputs').mkdir(mode=0o2770)
-        (work/'tmp').mkdir(mode=0o2770)
-        (work/'inputs'/'brief.txt').write_text(row['brief'], encoding='utf-8')
-        if self.store.get(row['owner'], row['id'])['status']=='cancelled':
-            return
-        prompt=initial(row['skill'], row['brief'])
-        (work/'inputs'/'prompt.txt').write_text(prompt, encoding='utf-8')
-        self.current_skill=row['skill']
         proc=None
         broker=None
         sock=None
-        total, progress=self.deadlines()
         try:
+            item=skill(row['skill'])
+            if item is None or item['status']!='enabled':
+                self._stop(row,'failed','studio_skill_blocked')
+                return
+            if not generation_enabled() or not accepted():
+                self._stop(row,'failed','studio_generation_disabled')
+                return
+            work=self.store.jobdir(row['id'])
+            if work.exists():
+                self._stop(row,'failed','studio_jobdir_exists')
+                return
+            plain_dir(work.parent)
+            plain_dir(work)
+            plain_dir(work/'inputs')
+            plain_dir(work/'outputs')
+            plain_dir(work/'tmp')
+            (work/'inputs'/'brief.txt').write_text(row['brief'], encoding='utf-8')
+            if self.store.get(row['owner'], row['id'])['status']=='cancelled':
+                return
+            prompt=initial(row['skill'], row['brief'])
+            (work/'inputs'/'prompt.txt').write_text(prompt, encoding='utf-8')
+            self.current_skill=row['skill']
+            total, progress=self.deadlines()
             if type(self).start_agent is StudioWorker.start_agent:
                 key=self.model_key if key is None else key
                 if not key:
@@ -162,8 +163,7 @@ class StudioWorker:
             self.store.finish_if_status(row['id'], 'queued', status, error, review)
     def _publish(self, work):
         published=work/'published'
-        published.mkdir(mode=0o770)
-        os.chmod(published, 0o2770)
+        plain_dir(published)
         for name in ('preview.html','report.md'):
             source=work/'outputs'/name
             if source.is_symlink() or not source.is_file() or source.stat().st_nlink!=1:
@@ -185,7 +185,10 @@ def main():
         if row is None:
             time.sleep(1)
             continue
-        worker.run_one(row)
+        try:
+            worker.run_one(row)
+        except Exception:
+            worker._stop(row,'failed','studio_worker_failed')
 
 if __name__=='__main__':
     main()

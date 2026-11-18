@@ -43,11 +43,22 @@ def authenticate(owners, header):
         raise Fault(401,'unauthorized')
     return owner
 
+def plain_dir(path, mode=0o770):
+    """Create a directory without asking for set-id bits.
+
+    RestrictSUIDSGID rejects mkdir/chmod when the requested mode contains
+    them, even if the directory already exists. A root-prepared parent with
+    the setgid bit set still propagates that bit and the group.
+    """
+    if mode & 0o6000:
+        raise RuntimeError('refusing_explicit_setid_mode')
+    Path(path).mkdir(mode=mode, exist_ok=True)
+
 class StudioStore:
     def __init__(self, settings):
         self.s=settings
         self.root=settings.data
-        self.root.mkdir(mode=0o2770, exist_ok=True)
+        plain_dir(self.root)
         self.dbpath=self.root/'studio.sqlite3'
         with self.db() as db:
             db.execute('PRAGMA journal_mode=DELETE')
@@ -132,9 +143,16 @@ class StudioStore:
                            (status, error, review, time.time(), job, expected))
             return cur.rowcount==1
 
-    def recover_orphans(self):
+    def recover_orphans(self, reason='studio_worker_restarted'):
+        """Move leftover running rows to failed. Never marks them ready."""
+        if reason in ('', 'ready') or 'ready' in reason:
+            raise RuntimeError('refusing_success_recovery')
         with self.db() as db:
-            db.execute("UPDATE jobs SET status='failed', error='studio_worker_restarted', updated=? WHERE status='running'", (time.time(),))
+            rows=db.execute("SELECT id FROM jobs WHERE status='running' ORDER BY created").fetchall()
+            ids=[row['id'] for row in rows]
+            if ids:
+                db.execute("UPDATE jobs SET status='failed', error=?, review='', updated=? WHERE status='running'", (reason, time.time()))
+        return ids
 
     def cancel(self, owner, job):
         row=self.get(owner, job)

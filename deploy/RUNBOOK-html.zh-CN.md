@@ -1,6 +1,6 @@
-# HTML 技能部署（html6，服务器尚未验收）
+# HTML 技能部署（html7，服务器尚未验收）
 
-版本目录是 `reader-phase1-20261117-r5-html6`。不要安装 html1 到 html5。不要把这个目录接成 `/opt/reader/current`。不要运行 reader 的 `prepare.sh`、`switch.sh` 或 `rollback.sh`。不要重启 reader-api:6010、TTS:8800 或 Harness:3080。不要执行 html2 备份里的 `ROLLBACK.sh`。html3 的边缘已经用官方 restore 撤掉，不要再 restore 一次。
+版本目录是 `reader-phase1-20261117-r5-html7`。不要安装 html1 到 html6。真实模型产物仍是 0。不要把这个目录接成 `/opt/reader/current`。不要运行 reader 的 `prepare.sh`、`switch.sh` 或 `rollback.sh`。不要重启 reader-api:6010、TTS:8800 或 Harness:3080。不要执行 html2 备份里的 `ROLLBACK.sh`。html3 的边缘已经用官方 restore 撤掉，不要再 restore 一次。
 
 html3 的 `studio-jobs.mount` 名字不合法，systemd 报 `Where= setting doesn't match unit name`。本包改为 `var-lib-studio-jobs.mount`。生产上那份旧 unit 已 disabled，128MiB jobs 盘仍挂着。`prepare` 会删掉无效 unit 文件并 `daemon-reload`，不会重新 mkfs，也不会卸载现有 jobs 盘。已有的 `/etc/studio/worker.env`（含已注入的密钥、`0600`）不会被覆盖密钥或把生成开关改成 1。
 
@@ -9,10 +9,10 @@ html3 的 `studio-jobs.mount` 名字不合法，systemd 报 `Where= setting does
 ## 先放好的东西
 
 1. 阅读器保持 `/opt/reader/current` → `reader-phase1-20261117-r5`。`/etc/reader` 维持 `0750 root:reader-data`。不要把 studio 用户加入 `reader-data`。
-2. 解包到 `/opt/studio/releases/reader-phase1-20261117-r5-html6`，把 `/opt/studio/current` 改指向这一目录。属主 root，不要做成组可写。html5 的 jobs 盘和 `var-lib-studio-jobs.mount` 保持不动，不要 mkfs，不要 umount。不要改 `/opt/reader-runtime` 里的包装器。
+2. 解包到 `/opt/studio/releases/reader-phase1-20261117-r5-html7`，把 `/opt/studio/current` 改指向这一目录。属主 root，不要做成组可写。html6 的 jobs 盘和 `var-lib-studio-jobs.mount` 保持不动，不要 mkfs，不要 umount。不要改 `/opt/reader-runtime` 里的包装器，也不要手改 `studio.sqlite3`。
 3. `/opt/reader-runtime/bin/python` 和 `/opt/reader-runtime-cache-0.2.2rc2` 保持 root 所有、组和其他不可写。
 
-核对包。打印出的哈希必须等于后面 `gate` 的 `trusted_manifest_sha256`。不要填 html5 的 `c50adced25a347ede3e49c01adcb5a95d13d0e7b0a77b3c6c495d339979cea74`。
+核对包。打印出的哈希必须等于后面 `gate` 的 `trusted_manifest_sha256`。不要填 html6 的 `a5e74ea5d0ce75bd5da161c3b928af7363530831d5011bd103331a1376e4a03c`。html6 的 gate 虽已通过，不能复制那次签署。
 
 ```bash
 python3 - <<'PY'
@@ -104,7 +104,15 @@ sudo /opt/studio/current/deploy/studio-lifecycle.sh start
 sudo /opt/studio/current/deploy/studio-lifecycle.sh health
 ```
 
-`start` 启用的是 `var-lib-studio-jobs.mount`，然后才是 api 和 worker。启用前 health 的 `generation` 必须是 `false`，`release` 以 `html6` 结尾。html5 的正式 start 已经成功过，这一步不要改 unit 名、包装器或 MemorySwapMax。
+`start` 启用的是 `var-lib-studio-jobs.mount`，然后才是 api 和 worker。启用前 health 的 `generation` 必须是 `false`，`release` 以 `html7` 结尾。不要关 `RestrictSUIDSGID`，不要改包装器或 MemorySwapMax。
+
+在 start 之前清掉 html6 留下的 running 任务。它不是成功，不能改成 ready：
+
+```bash
+sudo STUDIO_DATA=/var/lib/studio /opt/studio/current/deploy/studio-lifecycle.sh recover
+```
+
+预期 JSON 里 `ready` 为 false，`recovered` 含 `8bbbfa54c35249e1820da1bf2c4d24a7`，`error` 为 `studio_orphan_recovered`。再跑一次应是空列表。这条命令只打开 `studio.sqlite3`，不碰阅读器数据库，不读 `worker.env`。
 
 ```bash
 sudo /opt/studio/current/deploy/studio-lifecycle.sh gate
@@ -146,4 +154,4 @@ sudo /opt/studio/current/deploy/studio-lifecycle.sh rollback
 
 发布 tar/zip 含完整 `tests/`。云端数字是在目录名等于版本名的展开树里、用 `/tmp/r4-venv` 跑的 pytest。那不是生产门禁。生产门禁是 root 执行 `studio-lifecycle.sh gate`，并且 `systemd-analyze verify` 必须先通过。
 
-html5 的 `systemd-analyze verify` 和正式 `systemctl start` 已在服务器成功，health 为 html5 且 generation false。随后 gate 因包装器路径失败并回滚，没有留下可当签署的 cgroup 证据。本云端仍然没有 PID 1 systemd，不能重复那次 start。云端用 root 包装器复现了 `exec venv/bin/python`，并确认写错目标、属主或权限会被拒绝；bwrap 里三个技能仍读到各自的 `SKILL.md`。html6 的六项签署、三次真实生成、线上 401/403 和下载头都还没有在服务器上跑。
+html6 的 verify、start、gate（cgroup `memory.max=8388608`、`memory.swap.max=0`、返回码 -9、`oom=1`、`oom_kill=1`；Python 3.12.3；SDK 0.2.2rc2；包装器身份）和 enable、窄 edge 已在服务器成功。第一次真实任务在模型之前因 `mkdir(0o2770)` 与 `RestrictSUIDSGID` 失败，任务停在 running，产物 0。html7 不复制那次签署。本云端没有 PID 1 systemd，用与 systemd v255 相同的 seccomp 规则复现了 setgid 拒绝和父目录继承，不能代替服务器上的正式 unit。html7 的 gate、enable 和真实模型生成都还没有在服务器上跑。
