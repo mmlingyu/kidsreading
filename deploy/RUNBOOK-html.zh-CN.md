@@ -1,6 +1,6 @@
-# HTML 技能部署（html7，服务器尚未验收）
+# HTML 技能部署（html8，尚未在服务器验收）
 
-版本目录是 `reader-phase1-20261117-r5-html7`。不要安装 html1 到 html6。真实模型产物仍是 0。不要把这个目录接成 `/opt/reader/current`。不要运行 reader 的 `prepare.sh`、`switch.sh` 或 `rollback.sh`。不要重启 reader-api:6010、TTS:8800 或 Harness:3080。不要执行 html2 备份里的 `ROLLBACK.sh`。html3 的边缘已经用官方 restore 撤掉，不要再 restore 一次。
+版本目录是 `reader-phase1-20261117-r5-html8`。不要安装 html1 到 html6。线上正在跑的是 html7，本包不能覆盖那个目录，也不能拿去替换 `/opt/reader/current`。不要运行 reader 的 `prepare.sh`、`switch.sh` 或 `rollback.sh`。不要重启 reader-api:6010、TTS:8800 或 Harness:3080。不要执行 html2 备份里的 `ROLLBACK.sh`。html3 的边缘已经用官方 restore 撤掉，不要再 restore 一次。不要改每小时 3 次额度，不要新开 owner，也不要在额度用尽的这一小时里再提交 knowledge-travel。
 
 html3 的 `studio-jobs.mount` 名字不合法，systemd 报 `Where= setting doesn't match unit name`。本包改为 `var-lib-studio-jobs.mount`。生产上那份旧 unit 已 disabled，128MiB jobs 盘仍挂着。`prepare` 会删掉无效 unit 文件并 `daemon-reload`，不会重新 mkfs，也不会卸载现有 jobs 盘。已有的 `/etc/studio/worker.env`（含已注入的密钥、`0600`）不会被覆盖密钥或把生成开关改成 1。
 
@@ -9,10 +9,10 @@ html3 的 `studio-jobs.mount` 名字不合法，systemd 报 `Where= setting does
 ## 先放好的东西
 
 1. 阅读器保持 `/opt/reader/current` → `reader-phase1-20261117-r5`。`/etc/reader` 维持 `0750 root:reader-data`。不要把 studio 用户加入 `reader-data`。
-2. 解包到 `/opt/studio/releases/reader-phase1-20261117-r5-html7`，把 `/opt/studio/current` 改指向这一目录。属主 root，不要做成组可写。html6 的 jobs 盘和 `var-lib-studio-jobs.mount` 保持不动，不要 mkfs，不要 umount。不要改 `/opt/reader-runtime` 里的包装器，也不要手改 `studio.sqlite3`。
+2. 解包到 `/opt/studio/releases/reader-phase1-20261117-r5-html8`，确认无误后再把 `/opt/studio/current` 改指向这一目录。属主 root，不要做成组可写。不要删掉 html7 的发布目录，回退时把 current 指回去。html6 的 jobs 盘和 `var-lib-studio-jobs.mount` 保持不动，不要 mkfs，不要 umount。不要改 `/opt/reader-runtime` 里的包装器，也不要手改 `studio.sqlite3`。
 3. `/opt/reader-runtime/bin/python` 和 `/opt/reader-runtime-cache-0.2.2rc2` 保持 root 所有、组和其他不可写。
 
-核对包。打印出的哈希必须等于后面 `gate` 的 `trusted_manifest_sha256`。不要填 html6 的 `a5e74ea5d0ce75bd5da161c3b928af7363530831d5011bd103331a1376e4a03c`。html6 的 gate 虽已通过，不能复制那次签署。
+核对包。打印出的哈希必须等于后面 `gate` 的 `trusted_manifest_sha256`。本包这一值是 `66348e2f7bffbbd74180d2ec284ce45edd54955433968e970a742831b2841534`。不要填 html6 的 `a5e74ea5d0ce75bd5da161c3b928af7363530831d5011bd103331a1376e4a03c`，也不要填 html7 已经签署过的 `e01ba661a03a3ac349314a43f4b7b48913c35a0ad38097a5df139fd93a12c4ac`。html7 的 gate 虽已通过，不能复制那次签署。
 
 ```bash
 python3 - <<'PY'
@@ -104,7 +104,7 @@ sudo /opt/studio/current/deploy/studio-lifecycle.sh start
 sudo /opt/studio/current/deploy/studio-lifecycle.sh health
 ```
 
-`start` 启用的是 `var-lib-studio-jobs.mount`，然后才是 api 和 worker。启用前 health 的 `generation` 必须是 `false`，`release` 以 `html7` 结尾。不要关 `RestrictSUIDSGID`，不要改包装器或 MemorySwapMax。
+`start` 启用的是 `var-lib-studio-jobs.mount`，然后才是 api 和 worker。启用前 health 的 `generation` 必须是 `false`，`release` 以 `html8` 结尾。html7 留下的 `accepted.json` 对不上本包哈希，所以即使环境里的生成开关仍是 1，health 里的 generation 也应是 false，直到对本包重新 gate 和 enable。不要关 `RestrictSUIDSGID`，不要改包装器或 MemorySwapMax。
 
 在 start 之前清掉 html6 留下的 running 任务。它不是成功，不能改成 ready：
 
@@ -154,4 +154,6 @@ sudo /opt/studio/current/deploy/studio-lifecycle.sh rollback
 
 发布 tar/zip 含完整 `tests/`。云端数字是在目录名等于版本名的展开树里、用 `/tmp/r4-venv` 跑的 pytest。那不是生产门禁。生产门禁是 root 执行 `studio-lifecycle.sh gate`，并且 `systemd-analyze verify` 必须先通过。
 
-html6 的 verify、start、gate（cgroup `memory.max=8388608`、`memory.swap.max=0`、返回码 -9、`oom=1`、`oom_kill=1`；Python 3.12.3；SDK 0.2.2rc2；包装器身份）和 enable、窄 edge 已在服务器成功。第一次真实任务在模型之前因 `mkdir(0o2770)` 与 `RestrictSUIDSGID` 失败，任务停在 running，产物 0。html7 不复制那次签署。本云端没有 PID 1 systemd，用与 systemd v255 相同的 seccomp 规则复现了 setgid 拒绝和父目录继承，不能代替服务器上的正式 unit。html7 的 gate、enable 和真实模型生成都还没有在服务器上跑。
+html6 的 verify、start、gate（cgroup `memory.max=8388608`、`memory.swap.max=0`、返回码 -9、`oom=1`、`oom_kill=1`；Python 3.12.3；SDK 0.2.2rc2；包装器身份）和 enable、窄 edge 已在服务器成功。第一次真实任务在模型之前因 `mkdir(0o2770)` 与 `RestrictSUIDSGID` 失败，任务停在 running，产物 0。html7 不复制那次签署，并已在服务器通过自己的 gate、enable 和窄 edge。html7 的真实模型里，html-builder（`0dc62b1a13754544a15cdc0ad59942bb`，约 29 秒，preview 9632 / report 1507）和 zdog（`11d198a839f74bcc85fa8fa7ed3dfd90`，约 111 秒，preview 32432 / report 1471）各通过一次。knowledge-travel（`675f2e0834994547b6092b8de7ef06b2`，约 58 秒）没有写出文件，停止原因是 `max-tokens`。html8 还没有在服务器上跑 gate、enable 或真实模型。本云端没有 PID 1 systemd，用与 systemd v255 相同的 seccomp 规则复现了 setgid 拒绝和父目录继承，不能代替服务器上的正式 unit。排队中途取消、第二个 owner、进度超时和墙钟超时都还没有生产实测。
+
+html8 的预算：html-builder 与 zdog 仍是每次请求 8192 token、每任务最多 12 次请求。knowledge-travel 每次请求 16384，同样最多 12 次请求，并且在 `max-tokens` 后最多续写 2 次。续写不新开任务，不重置 12 次，也不再占每小时额度。总时限和 4GB 内存限制不动。云端测试用的是假模型，不能代替下一次生产验收。

@@ -15,8 +15,13 @@ def safe_blocks(value):
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self,*args,**kwargs): return None
 
+# Per request, not per turn. deepseek-flash allows up to 384K output; thinking mode
+# defaults to 64K. These two caps are the only values the broker will forward.
+OUTPUT_CAPS=(8192, 16384)
+MODEL_CALLS=12
+
 class Budget:
-    def __init__(self, calls=12, request_bytes=512000, response_bytes=2*1024*1024):
+    def __init__(self, calls=MODEL_CALLS, request_bytes=512000, response_bytes=2*1024*1024):
         self.calls, self.request_bytes, self.response_bytes = calls, request_bytes, response_bytes
         self.lock = threading.Lock()
     def take(self, size):
@@ -27,8 +32,9 @@ class Budget:
 
 class Broker(socketserver.ThreadingMixIn, socketserver.UnixStreamServer):
     daemon_threads=True
-    def __init__(self,path,key,model='deepseek-flash',opener=None):
+    def __init__(self,path,key,model='deepseek-flash',opener=None,max_tokens=8192):
         self.key,self.model,self.budget=key,model,Budget()
+        self.max_tokens=max_tokens if max_tokens in OUTPUT_CAPS else 8192
         self.opener=opener or urllib.request.build_opener(urllib.request.ProxyHandler({}),NoRedirect())
         super().__init__(str(path), Handler)
 
@@ -56,7 +62,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not isinstance(tools,list) or any(not isinstance(t,dict) or t.get('type') not in (None,'custom') or 'input_schema' not in t for t in tools): return self.fail(403)
             allowed={'messages','system','tools','tool_choice','stream','temperature','top_p','thinking','stop_sequences'}
             payload={k:v for k,v in payload.items() if k in allowed}
-            payload.update(model=self.server.model,max_tokens=8192)
+            payload.update(model=self.server.model,max_tokens=self.server.max_tokens)
             if isinstance(payload.get('thinking'),dict) and 'budget_tokens' in payload['thinking']:
                 payload['thinking']['budget_tokens']=2048
             req=urllib.request.Request('https://api.deepseek.com/anthropic/v1/messages',
@@ -79,6 +85,8 @@ if __name__=='__main__':
     import os, sys
     from pathlib import Path
     os.umask(0o077)
-    key=json.loads(sys.stdin.buffer.read(4096))['key']
+    raw=json.loads(sys.stdin.buffer.read(4096))
+    key=raw['key']
+    cap=raw.get('max_tokens', 8192)
     path=Path(sys.argv[1])
-    with Broker(path,key) as server: server.serve_forever()
+    with Broker(path,key,max_tokens=cap if cap in OUTPUT_CAPS else 8192) as server: server.serve_forever()

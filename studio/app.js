@@ -1,11 +1,27 @@
 let token = "";
 let job = "";
 let url = "";
+let timer = 0;
 const status = document.querySelector("#status");
 const reason = document.querySelector("#reason");
 const skill = document.querySelector("#skill");
 const frame = document.querySelector("#frame");
 function say(text) { status.textContent = text; }
+function describe(row) {
+  if (row.error === "studio_generation_budget") {
+    return "studio_generation_budget：生成达到本次输出预算，合格文件还没写完。请等下一个额度窗口再试，不要在同一小时里连续付费重试。";
+  }
+  if (row.status === "failed") return "failed " + (row.error || "");
+  return row.status || "";
+}
+async function refresh() {
+  if (!job) return;
+  try {
+    const row = await api("/api/studio/jobs/" + job);
+    say(describe(row));
+    if (row.status === "queued" || row.status === "running") timer = window.setTimeout(refresh, 2000);
+  } catch (error) { say(error.message); }
+}
 function authHeaders() {
   const value = token.trim();
   if (!/^[A-Za-z0-9._~+\/=-]{32,256}$/.test(value)) throw Error("Token 格式不对");
@@ -53,7 +69,9 @@ document.querySelector("#send").addEventListener("click", async () => {
       body: JSON.stringify({ skill: selected.value, brief: document.querySelector("#brief").value }),
     });
     job = created.id;
-    say(created.status);
+    window.clearTimeout(timer);
+    say(describe(created));
+    refresh();
   } catch (error) { say(error.message); }
 });
 document.querySelector("#stop").addEventListener("click", async () => {
