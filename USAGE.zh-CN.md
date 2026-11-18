@@ -1,6 +1,8 @@
 # HTML 技能使用说明
 
-版本目录：`reader-phase1-20261117-r5-html7`。html1 到 html6 不能部署。真实生成还没有成功，产物为 0。这不是已验收标签，也不要替换正在服务的阅读器。服务器上的真实模型验收还没有做。下面的域名写成 `https://SERVICE`。示例里没有 Token。
+版本目录：`reader-phase1-20261117-r5-html7`。html1 到 html6 不能部署。阅读器页面是 `https://124.222.128.61/reader/`，不是这个 IP 的网站根。阅读器 API 仍是 `https://124.222.128.61/api/reader/`。Studio 页面是 `https://124.222.128.61/studio/`，API 是 `https://124.222.128.61/api/studio/`。下面其他例子把主机写成 `https://SERVICE`。示例里没有 Token。
+
+html7 已在服务器打开生成。html-builder 与 zdog 各有一次真实 ready 产物。knowledge-travel 有一次真实调用，审查失败，没有可下载产物，不要把它写成已通过，也不要在当前这一小时的 3 次额度里再付费重试。四个 blocked 技能仍不可调用。排队中途取消、第二个 owner、进度超时和墙钟超时还没有生产实测。
 
 2026-11-18 19:29 已允许把这 7 个技能源码公开进仓库。样例 HTML 没有打进发布包。
 
@@ -8,9 +10,9 @@
 
 | 技能 | 状态 | 原因 |
 |---|---|---|
-| html-builder | 可调用 | 原 `SKILL.md` 已原样放入 `skills/html-skills/html-builder/`。产物是 `preview.html` 和 `report.md`。 |
-| zdog | 可调用 | 原技能要求 Zdog 1.1.3。发布包内置官方 npm 1.1.3 的 `zdog.dist.min.js`（SHA256 `2baede641561fa7f00490809a3357ce66a70a47c4c46385b078b8e10027c14f0`），禁止再去 CDN。 |
-| knowledge-travel | 可调用 | 原 `SKILL.md`、`examples.md`、`reference.md` 已放入。没有随包提供 huashu 本机参考路径，也不因此联网。 |
+| html-builder | 生产已通过一次 | 任务 `0dc62b1a13754544a15cdc0ad59942bb`，约 29 秒 ready。preview 9632 字节，report 1507 字节。 |
+| zdog | 生产已通过一次 | 任务 `11d198a839f74bcc85fa8fa7ed3dfd90`，约 111 秒 ready。preview 32432 字节，report 1471 字节。官方离线 Zdog 1.1.3 已内联，无 CDN。 |
+| knowledge-travel | 可调用，生产一次未通过 | 任务 `675f2e0834994547b6092b8de7ef06b2`，约 58 秒 `studio_review_failed`。没有公布产物。原因还不能从现有记录分成缺文件、过短或符号链接。 |
 | spdesign | blocked | 缺生图适配，也没有任务所需的 11 张参考图。`missing_image_adapter_and_eleven_reference_images` |
 | 3d-game-dev | blocked | 缺 Blender 网关和人工目标图确认。`missing_blender_gateway_and_human_target_approval` |
 | creation-engine | blocked | 原技能依赖的 `3dplay` 校验、`catalog.json` 和 `img2threejs` 不在上传包里。`missing_3dplay_rules_catalog_and_img2threejs` |
@@ -20,7 +22,7 @@
 
 ## 页面
 
-打开 `https://SERVICE/studio/`。填入现有 Reader Token，选可调用技能，写 brief，提交。blocked 技能会显示原因，提交会被拒绝。完成后下载 `preview.html`。预览 iframe 只有 `sandbox="allow-scripts"`，没有 `allow-same-origin`。Token 不进预览，也不进 localStorage。这个页面不是阅读器，不会改书架。
+阅读器页面打开 `https://124.222.128.61/reader/`。Studio 打开 `https://124.222.128.61/studio/`。填入现有 Reader Token，目前只选 html-builder 或 zdog。blocked 技能会显示原因，提交会被拒绝。knowledge-travel 先不要再提交。完成后下载 `preview.html`。预览 iframe 只有 `sandbox="allow-scripts"`，没有 `allow-same-origin`。Token 不进预览，也不进 localStorage。这个页面不是阅读器，不会改书架。
 
 ## curl
 
@@ -54,8 +56,8 @@ Invoke-RestMethod -Method Post -Headers $headers -ContentType "application/json"
 - `400` / `studio_bad_request`：多了 URL、图片或其他字段。
 - `429`：同一身份同时任务或每小时次数到了。
 - `studio_generation_disabled`：生成开关仍是 0，或六项门禁还没按新 hash 签过。这是默认状态。
-- `studio_review_failed`：页面不是完整 HTML、报告不足 80 字节、有 file://、父页桥、危险扫描，或 zdog 没有内联规定的库。
-- 真实模型生成和服务器验收不在本说明的完成范围内。
+- `studio_review_failed`：审查没有接受 `outputs/preview.html` 或 `outputs/report.md`。`preview_too_small_or_unsafe` 和 `report_too_small_or_unsafe` 只表示文件不是「普通文件、硬链接数为 1、长度在 80 字节到上限之间」。缺文件、符号链接、硬链接、短于 80 字节、或超过上限，都是这一个码。内容检查（是否完整 HTML、knowledge-travel 的 `game-spec`）要等这一关通过才跑。
+- html-builder 与 zdog 的真实模型已各通过一次。knowledge-travel 的那一次没有通过。排队中途取消、第二个 owner、超时还没有生产实测。
 
 ## 依赖还缺什么
 
