@@ -1,0 +1,8 @@
+source: https://registry.npmjs.org/zdog/-/zdog-1.1.3.tgz
+tarball_sha256: df892420c134e2c0178f928c2ca2353ab20c36917f246f0e9fb34190af25089f
+file: package/dist/zdog.dist.min.js
+file_sha256: 2baede641561fa7f00490809a3357ce66a70a47c4c46385b078b8e10027c14f0
+file_bytes: 29737
+npm_license_field: MIT
+dist_header: Licensed MIT; Copyright 2020 Metafizzy; https://zzz.dog
+note: the official 1.1.3 npm tarball has no separate LICENSE file. This copy is the published dist file, byte for byte. Workers must inline it and must not fetch a CDN.

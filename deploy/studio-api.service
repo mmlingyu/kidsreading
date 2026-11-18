@@ -1,0 +1,32 @@
+[Unit]
+Description=HTML studio control plane beside reader, not a replacement
+After=network.target var-lib-studio-jobs.mount
+Requires=var-lib-studio-jobs.mount
+[Service]
+Type=simple
+User=studio-api
+Group=studio-data
+UMask=0007
+WorkingDirectory=/opt/studio/current
+EnvironmentFile=/etc/studio/api.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/opt/reader-runtime/bin/python -m uvicorn reader_service.studio_api:create_app --factory --host 127.0.0.1 --port 6011 --workers 1 --limit-concurrency 8 --no-access-log --no-proxy-headers --log-level warning
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+CapabilityBoundingSet=
+ReadWritePaths=/var/lib/studio /var/lib/studio/jobs
+MemoryMax=128M
+MemorySwapMax=0
+TasksMax=32
+LimitNOFILE=256
+LimitCORE=0
+OOMPolicy=kill
+[Install]
+WantedBy=multi-user.target

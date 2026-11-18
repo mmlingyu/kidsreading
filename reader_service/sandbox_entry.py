@@ -22,6 +22,12 @@ class Relay(http.server.BaseHTTPRequestHandler):
         except Exception:
             self.close_connection=True
 
+OUTPUT_CAPS=(8192, 16384)
+
+def requested_cap(control):
+    value=control.get('max_tokens', 8192) if isinstance(control, dict) else 8192
+    return value if value in OUTPUT_CAPS else 8192
+
 def main():
     from deepseek_harness import DeepSeekHarness
     server=http.server.ThreadingHTTPServer(('127.0.0.1',18080),Relay)
@@ -32,7 +38,7 @@ def main():
     try:
         with DeepSeekHarness(profile='sdk-minimal',cwd='/work',runtime_cwd='/work',dsh_home='/work/.dsh',
                              base_url='http://127.0.0.1:18080',api_key='job-broker-not-a-provider-key',
-                             model='deepseek-flash',max_tokens=8192,
+                             model='deepseek-flash',max_tokens=requested_cap(control),
                              request_timeout_seconds=120,initialize_timeout_seconds=30) as harness:
             if control['resume']:
                 result=harness.resume_session(session).run(control['prompt'])

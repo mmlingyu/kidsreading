@@ -1,0 +1,13 @@
+# Independent fragment. Merge inside the existing HTTPS site block.
+# Do not replace /api/reader/*, /reader/*, TTS, Harness, or TLS.
+# Studio pages and APIs are served by 127.0.0.1:6011, not by the reader tree.
+@studio_api path /api/studio/*
+handle @studio_api {
+	request_body {
+		max_size 16KB
+	}
+	reverse_proxy 127.0.0.1:6011
+}
+handle /studio/* {
+	reverse_proxy 127.0.0.1:6011
+}
