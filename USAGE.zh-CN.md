@@ -1,6 +1,6 @@
 # HTML 技能使用说明
 
-版本目录：`reader-phase1-20261117-r5-html2`。html1 不能部署。这不是已验收标签，也不要替换正在服务的阅读器。生成和六项门禁都还没有在服务器上验收。下面的域名写成 `https://SERVICE`。示例里没有 Token。
+版本目录：`reader-phase1-20261117-r5-html3`。html1 和 html2 不能部署。这不是已验收标签，也不要替换正在服务的阅读器。服务器上的真实模型验收还没有做。下面的域名写成 `https://SERVICE`。示例里没有 Token。
 
 2026-11-18 19:29 已允许把这 7 个技能源码公开进仓库。样例 HTML 没有打进发布包。
 
@@ -67,10 +67,16 @@ Invoke-RestMethod -Method Post -Headers $headers -ContentType "application/json"
 
 ## 安装和当前状态
 
-`deploy/studio-lifecycle.sh` 只操作 studio：`prepare`、`start`、`health`、`gate`、`rollback`。`enable` 会拒绝，直到部署者按本包新的 trusted hash 重签六项门禁。不要沿用 r5 的签署。反代片段是 `deploy/caddy-studio.fragment`，用 `deploy/validate-studio-caddy.sh` 检查，不要改阅读器那一份。
+步骤、预期输出和失败恢复在 `deploy/RUNBOOK-html.zh-CN.md`。摘要：
 
-Studio 的 api 和 worker 共用 `studio-data` 组，目录是 `2770`，unit 的 `UMask=0007`。它们不加入 `reader-data`，避免得到 `/var/lib/reader` 的组写权限。若 `/etc/reader/owners.json` 已存在，prepare 只给这两个用户加读 ACL，不改原来的 `640`。模型密钥只在 worker 环境里，进程交给 gateway 的标准输入后就从自己的环境去掉，再启动 bwrap。取消不会把已经取消的任务写成 ready。总时限默认 600 秒、硬上限 900 秒；产物没有更新时默认 180 秒、硬上限 300 秒，超时会停掉整个进程组。
+- `prepare` 不把 studio 用户加入 `reader-data`。`/etc/reader` 只加目录搜索 `x`，`owners.json` 只加 `r`。回滚用 prepare 当时的 ACL 快照，不用 `setfacl -b`。
+- jobs 在独立 128MiB `nosuid,nodev,noexec` 盘，不使用阅读器的 512MiB 盘。
+- 现网 HTTPS 是 `local-tts-edge.service` 和 `/etc/local-tts-edge/Caddyfile`。`deploy/edge-studio.sh install` 备份后只插入 studio 前缀，校验整份文件，再 `reload` 这个 unit。`validate-studio-caddy.sh` 只检查片段。
+- `gate` 跑六项探针。`enable` 只有探针通过且哈希等于本树 `TRUSTED-SHA256.json` 时才写签署并打开生成。不要沿用 r5、html1 或 html2 的签署。
+- 密钥只在 worker 的 env 文件里。进程启动读一次，之后从环境删除；同一进程的后续任务复用内存里的那一份。不进 bwrap 的环境或参数。
+
+Studio 的 api 和 worker 共用 `studio-data`，目录 `2770`，`UMask=0007`。数据库和发布文件是 `0660`。取消不会把已经取消的任务写成 ready。总时限默认 600 秒、硬上限 900 秒；产物没有更新时默认 180 秒、硬上限 300 秒。
 
 ## 回滚
 
-根用户执行 `deploy/rollback-studio.sh --stop-studio`。只停 studio。阅读器 current、6010、8800、3080 保持不动。
+`deploy/studio-lifecycle.sh disable` 关掉生成。`rollback` 只停 studio 并还原本次 ACL。边缘用 `deploy/edge-studio.sh restore 备份目录`。阅读器 current、6010、8800、3080 保持不动。

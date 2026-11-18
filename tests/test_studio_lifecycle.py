@@ -14,7 +14,7 @@ def test_lifecycle_script_does_not_touch_reader_units():
     assert 'systemctl stop reader' not in script
     assert '/opt/reader/current' not in script
     assert '6010' not in script and '8800' not in script and '3080' not in script
-    for name in ('prepare-studio.sh','rollback-studio.sh','studio-lifecycle.sh','validate-studio-caddy.sh'):
+    for name in ('prepare-studio.sh','rollback-studio.sh','studio-lifecycle.sh','validate-studio-caddy.sh','edge-studio.sh'):
         subprocess.run(['bash','-n',str(ROOT/'deploy'/name)], check=True)
     fragment=(ROOT/'deploy'/'caddy-studio.fragment').read_text()
     assert '/api/studio/' in fragment and '/studio/' in fragment and '127.0.0.1:6011' in fragment

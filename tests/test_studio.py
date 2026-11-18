@@ -1,4 +1,4 @@
-import hashlib, json
+import hashlib, json, os
 from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
@@ -57,6 +57,53 @@ def test_enabled_skills_publish_only_after_review(tmp_path, skill, html, monkeyp
     assert done['status']=='ready', done['error']
     published=store.jobdir(row['id'])/'published'
     assert sorted(p.name for p in published.iterdir())==['preview.html','report.md']
+
+def test_model_key_is_kept_for_the_next_job_and_kept_out_of_children(tmp_path, monkeypatch):
+    sentinel='SENTINEL-NOT-A-REAL-KEY'
+    monkeypatch.setenv('DEEPSEEK_API_KEY', sentinel)
+    monkeypatch.setenv('STUDIO_ENABLE_GENERATION','1')
+    monkeypatch.setattr('reader_service.studio_worker.accepted', lambda path=None: True)
+    short=Path('/tmp/studio-key-reuse')
+    if short.exists():
+        import shutil; shutil.rmtree(short)
+    short.mkdir()
+    store=StudioStore(settings(short))
+    worker=StudioWorker(store)
+    assert 'DEEPSEEK_API_KEY' not in os.environ
+    seen=[]
+    def fake_spawn(args):
+        assert all(sentinel not in str(part) for part in args)
+        work=None
+        for index, part in enumerate(args):
+            if part=='--bind' and args[index+2]=='/work':
+                work=Path(args[index+1])
+        (work/'outputs'/'preview.html').write_text(html_ok(), encoding='utf-8')
+        (work/'outputs'/'report.md').write_text('结构、交互、依赖和验证都已写明。'*6, encoding='utf-8')
+        class Done:
+            def poll(self): return 0
+            def wait(self, timeout=None): return 0
+        return Done()
+    monkeypatch.setattr('reader_service.studio_worker.spawn', fake_spawn)
+    real=StudioWorker.start_gateway
+    def wrap(self, row, key):
+        seen.append(key)
+        sock, broker=real(self, row, key)
+        blob=Path(f'/proc/{broker.pid}/environ').read_bytes()+Path(f'/proc/{broker.pid}/cmdline').read_bytes()
+        assert sentinel.encode() not in blob
+        return sock, broker
+    monkeypatch.setattr(StudioWorker, 'start_gateway', wrap)
+    for brief in ('第一页', '第二页'):
+        row=store.create('ann', {'skill':'html-builder','brief':brief})
+        worker.run_one(row)
+        done=store.get('ann', row['id'])
+        assert done['status']=='ready', done['error']
+        blob=''.join(path.read_text(encoding='utf-8', errors='replace') for path in store.jobdir(row['id']).rglob('*') if path.is_file())
+        assert sentinel not in blob
+    assert seen==[sentinel, sentinel]
+    monkeypatch.setenv('DEEPSEEK_API_KEY', sentinel)
+    restarted=StudioWorker(store)
+    assert restarted.model_key==sentinel
+    assert 'DEEPSEEK_API_KEY' not in os.environ
 
 def test_danger_symlink_and_missing_report_fail(tmp_path, monkeypatch):
     monkeypatch.setenv('STUDIO_ENABLE_GENERATION','1')

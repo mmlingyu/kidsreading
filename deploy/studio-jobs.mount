@@ -1,0 +1,11 @@
+[Unit]
+Description=Studio jobs 128MiB noexec hard-cap filesystem
+Before=studio-api.service studio-worker.service
+[Mount]
+What=/var/lib/studio-storage/jobs.ext4
+Where=/var/lib/studio/jobs
+Type=ext4
+Options=loop,nodev,nosuid,noexec
+TimeoutSec=30
+[Install]
+WantedBy=multi-user.target

@@ -1,6 +1,7 @@
 [Unit]
 Description=HTML studio worker beside reader, not a replacement
-After=network.target
+After=network.target studio-jobs.mount
+Requires=studio-jobs.mount
 [Service]
 Type=simple
 User=studio-worker
@@ -10,6 +11,7 @@ WorkingDirectory=/opt/studio/current
 EnvironmentFile=/etc/studio/worker.env
 UnsetEnvironment=TTS_API_TOKEN
 Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=READER_RUNTIME_CACHE=/opt/reader-runtime-cache-0.2.2rc2
 ExecStart=/opt/reader-runtime/bin/python -m reader_service.studio_worker
 NoNewPrivileges=true
 ProtectSystem=strict
@@ -23,9 +25,14 @@ RestrictSUIDSGID=true
 RestrictNamespaces=user pid net ipc uts mnt cgroup
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
 CapabilityBoundingSet=
-ReadWritePaths=/var/lib/studio
+ReadWritePaths=/var/lib/studio /var/lib/studio/jobs
+ReadOnlyPaths=/opt/reader-runtime-cache-0.2.2rc2
 MemoryMax=384M
 MemorySwapMax=0
 TasksMax=32
+LimitNOFILE=256
+LimitFSIZE=32M
+LimitCORE=0
+OOMPolicy=kill
 [Install]
 WantedBy=multi-user.target

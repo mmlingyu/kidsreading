@@ -1,6 +1,7 @@
 [Unit]
 Description=HTML studio control plane beside reader, not a replacement
-After=network.target
+After=network.target studio-jobs.mount
+Requires=studio-jobs.mount
 [Service]
 Type=simple
 User=studio-api
@@ -20,9 +21,12 @@ ProtectKernelModules=true
 ProtectControlGroups=true
 RestrictSUIDSGID=true
 CapabilityBoundingSet=
-ReadWritePaths=/var/lib/studio
+ReadWritePaths=/var/lib/studio /var/lib/studio/jobs
 MemoryMax=128M
 MemorySwapMax=0
 TasksMax=32
+LimitNOFILE=256
+LimitCORE=0
+OOMPolicy=kill
 [Install]
 WantedBy=multi-user.target

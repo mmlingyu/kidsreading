@@ -17,9 +17,17 @@ def accepted(path=None):
     target=Path(path or os.environ.get('STUDIO_ACCEPTED_FILE','/etc/studio/accepted.json'))
     return reader_accepted(target)
 
+def take_model_key(explicit=None):
+    """Read the broker secret once. Later jobs and restarts must not depend on a second pop."""
+    if explicit is not None:
+        return explicit
+    return os.environ.pop('DEEPSEEK_API_KEY', '')
+
 class StudioWorker:
-    def __init__(self, store):
+    def __init__(self, store, model_key=None):
         self.store=store
+        self.model_key=model_key if model_key is not None else take_model_key()
+        os.environ.pop('DEEPSEEK_API_KEY', None)
     def deadlines(self):
         total=int(os.environ.get('STUDIO_JOB_TIMEOUT','600'))
         progress=int(os.environ.get('STUDIO_PROGRESS_TIMEOUT','180'))
@@ -111,7 +119,7 @@ class StudioWorker:
         total, progress=self.deadlines()
         try:
             if type(self).start_agent is StudioWorker.start_agent:
-                key=os.environ.pop('DEEPSEEK_API_KEY','') if key is None else key
+                key=self.model_key if key is None else key
                 if not key:
                     self._stop(row,'failed','model_credential_unavailable')
                     return
@@ -166,7 +174,7 @@ def main():
     from .studio_store import StudioSettings, StudioStore
     store=StudioStore(StudioSettings.load())
     store.recover_orphans()
-    worker=StudioWorker(store)
+    worker=StudioWorker(store, model_key=take_model_key())
     while True:
         beat=store.root/'worker-heartbeat'
         beat.write_text(str(time.time()), encoding='utf-8')

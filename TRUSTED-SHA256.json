@@ -1,5 +1,5 @@
 {
-  "reader_service/__init__.py": "c41d9197f8394d330d2d984d1ba4acddd82920f9c0d64b0e6b410227f6f1d464",
+  "reader_service/__init__.py": "0e46fa078fa5dc8f9b49f870be405545730a51950d7feabb76a097764de6068d",
   "reader_service/acceptance.py": "7b1d7751c9178526e319251fb4636f907d50cafc27ea4584c4fae283d6b80640",
   "reader_service/allowed-media.json": "4d00c6706eba6a1ffda9ef11d696ede3455df3a9b3ca746b5da707faf59c8a00",
   "reader_service/api.py": "89fd0fe5271f40704a75efa4d1168d77b2a8755ad456a4efa6f80b5a9d81650d",
@@ -18,8 +18,8 @@
   "reader_service/studio_catalog.py": "d17e90e45d6a68ff76f8f19d59def8d395f935b3433791e169d39840ce7f01d7",
   "reader_service/studio_prompts.py": "b7218ebc545785a8596366fe1273edadb4cf47fa3c3ac7443d7fd27f37af9099",
   "reader_service/studio_review.py": "ec7eac4fbfe5ddbc6c154a9c457af9c8c848d780610fb152c22869e012f0d34c",
-  "reader_service/studio_store.py": "f5ba08f2d41747a7949428c339563d07ac7a2f53c98a4bbe9fff8b84b7d9524c",
-  "reader_service/studio_worker.py": "71228b8ed462140879c3089f0c67aa4ff53ae7e2a2473adbc22a123e55d9ba95",
+  "reader_service/studio_store.py": "bb997fcfd24b964de0d0d826df92874b03012e6f1af66c15765d59f1f0055c9f",
+  "reader_service/studio_worker.py": "7ed22f97f7ae858c574e3fabd3fb282cd25661068fbd6a57e908d794b54dceeb",
   "reader_service/tts_proxy.py": "badba9d748f873857f4a979509d554e95d4e328cbc3c79bee857caa0540b5f18",
   "reader_service/url_fetch.py": "b5fc40f006175d52b23dde389ee44e67c0cadc886142a08368171d5189a91240",
   "reader_service/validate.mjs": "fd4e9ad9b3f5e5848b0dfee8c75e26fc254f44b997fc17e92b2df4c1edbcd0c7",

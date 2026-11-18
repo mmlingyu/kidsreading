@@ -55,7 +55,10 @@ class StudioStore:
                 id TEXT PRIMARY KEY, owner TEXT, skill TEXT, brief TEXT,
                 status TEXT, error TEXT, created REAL, updated REAL, review TEXT)''')
         if self.dbpath.exists():
-            os.chmod(self.dbpath, 0o660)
+            if self.dbpath.stat().st_uid==os.geteuid():
+                os.chmod(self.dbpath, 0o660)
+            if self.dbpath.stat().st_mode & 0o007:
+                raise RuntimeError('studio_db_permissions')
 
     def db(self):
         conn=sqlite3.connect(self.dbpath, timeout=5)
